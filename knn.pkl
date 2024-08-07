@@ -1,0 +1,22 @@
+from sklearn.neighbors import NearestNeighbors
+
+# Prepare feature matrix
+X_features = recommender_df[['views', 'applies', 'average_salary']].values
+
+# Apply KNN for job recommendations
+knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
+distances, indices = knn.kneighbors(X_features)
+
+# Calculate average distance of nearest neighbors
+average_distance = np.mean(distances)
+
+# Print average distance
+print(f"Average Distance to Nearest Neighbors: {average_distance:.2f}")
+
+# Display KNN recommendations for a specific job
+job_id = 5
+recommendations = indices[job_id]
+top_recommendations = recommender_df.iloc[recommendations[0]]
+
+print("\nKNN Recommendations based on JOB ID:")
+print(top_recommendations)
