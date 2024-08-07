@@ -23,6 +23,10 @@ description_model, knn_model, predictor_model = load_models()
 # Load dataset for KNN recommendations
 recommender_df = pd.read_csv('postings.csv')  # Adjust path as needed
 
+# Load TF-IDF matrix
+with open('tfidf_matrix.pkl', 'rb') as file:
+    tfidf_matrix = pickle.load(file)
+
 # Set up the Streamlit app
 st.title('Job Recommendation System')
 
@@ -64,10 +68,10 @@ if option == 'Recommend Jobs Based on Description':
             file_content = uploaded_file.read().decode('utf-8')
             file_df = pd.DataFrame({'description': file_content.split('\n')})
         elif uploaded_file.type == 'application/pdf':
-            reader = PyPDF2.PdfFileReader(io.BytesIO(uploaded_file.read()))
+            reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
             file_content = ''
-            for page_num in range(reader.numPages):
-                page = reader.getPage(page_num)
+            for page_num in range(len(reader.pages)):
+                page = reader.pages[page_num]
                 file_content += page.extract_text()
             file_df = pd.DataFrame({'description': file_content.split('\n')})
         
@@ -146,4 +150,4 @@ elif option == 'Predict Candidate Interest':
             st.error('Please fill in all fields.')
 
 # Footer
-st.write('Made with ❤️ by Your Name')
+st.write('Made with ❤️ by gesaka')
