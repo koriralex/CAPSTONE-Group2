@@ -1,6 +1,7 @@
 ## Background Story
 
-![image](https://github.com/user-attachments/assets/f250a022-07bd-40b8-873d-1339e4b4cf14)
+![image](https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701)
+
 
 
 
