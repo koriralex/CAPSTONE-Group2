@@ -1,5 +1,9 @@
 ## Background Story
 
+![image](https://github.com/user-attachments/assets/f250a022-07bd-40b8-873d-1339e4b4cf14)
+
+
+
 The employment sector is continuously evolving, with job seekers and employers facing numerous challenges. 
 Job seekers often struggle to find suitable job opportunities that match their skills and preferences, while employers find it difficult to attract qualified candidates for their job postings. 
 With the advent of advanced data analytics and machine learning, there is an opportunity to enhance the job matching process, 
@@ -30,11 +34,11 @@ Conversely, employers struggle to understand what factors contribute to the attr
 
 
 ## Target Audience
-***Job Seekers***: Individuals seeking suitable job opportunities and career growth.
+***Job Seekers***: Individuals seeking suitable job opportunities and career growth.
 
-***Employers***: Companies looking to recruit qualified candidates for job openings.
+***Employers***: Companies looking to recruit qualified candidates for job openings.
 
-***Recruitment Agencies***: Agencies that assist job seekers and employers in the recruitment process.
+***Recruitment Agencies***: Agencies that assist job seekers and employers in the recruitment process.
 
 
 
