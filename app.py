@@ -33,7 +33,7 @@ def load_models():
 
     return description_model, knn_model, forest_model
 
-description_model, knn_model, predictor_model = load_models()
+description_model, knn_model, forest_model = load_models()
 
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')  # 
@@ -157,4 +157,29 @@ elif option == 'Predict Candidate Interest':
     work_type = st.selectbox('Work Type:', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'], key='job_work_type')
 
     if st.button('Predict Interest'):
-        if title and description and location and
+        if title and description and location and company_name:
+            # Preprocess the text fields
+            title_processed = preprocess_text(title)
+            description_processed = preprocess_text(description)
+            location_processed = preprocess_text(location)
+            company_name_processed = preprocess_text(company_name)
+
+            # Create input feature array for prediction
+            input_features = pd.DataFrame({
+                'title': [title_processed],
+                'description': [description_processed],
+                'location': [location_processed],
+                'company_name': [company_name_processed],
+                'views': [views],
+                'description_length': [description_length],
+                'average_salary': [average_salary],
+                'formatted_experience_level': [formatted_experience_level],
+                'days_since_listed': [days_since_listed],
+                'work_type': [work_type]
+            })
+
+            # Predict candidate interest
+            prediction = forest_model.predict(input_features)
+            st.write(f'Predicted Candidate Interest: {prediction[0]}')
+        else:
+            st.error('Please fill in all the fields.')
