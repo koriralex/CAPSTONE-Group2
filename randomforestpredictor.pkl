@@ -1,0 +1,4 @@
+# Save the trained model to a file
+model_filename = 'random_forest_model.pkl'
+with open(model_filename, 'wb') as file:
+    pickle.dump(forest_model, file)
