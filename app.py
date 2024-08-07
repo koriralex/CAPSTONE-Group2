@@ -5,8 +5,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
+import re
 
-# Load models
+# Function to load models
 @st.cache_resource
 def load_models():
     with open('description.pkl', 'rb') as f:
@@ -33,6 +34,21 @@ option = st.sidebar.selectbox('Select Recommendation Type',
                                'Recommend Jobs Based on Title Filter',
                                'Predict Candidate Interest'])
 
+# Function for text preprocessing
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\W', ' ', text)  # Remove non-word characters
+    text = re.sub(r'\s+', ' ', text)  # Remove extra whitespace
+    return text
+
+# Function to recommend jobs based on description
+def recommend_jobs(input_description, top_n=10):
+    input_description_processed = preprocess_text(input_description)
+    input_vector = description_model.transform([input_description_processed])
+    similarities = cosine_similarity(input_vector, tfidf_matrix).flatten()
+    indices = similarities.argsort()[-top_n:][::-1]
+    return recommender_df.iloc[indices]
+
 # Job Recommendations Based on Description
 if option == 'Recommend Jobs Based on Description':
     st.subheader('Job Recommendations Based on Description')
@@ -58,9 +74,10 @@ if option == 'Recommend Jobs Based on Description':
         # Process descriptions and make recommendations
         if 'description' in file_df.columns:
             descriptions = file_df['description'].tolist()
-            recommendations = [description_model.predict([desc])[0] for desc in descriptions]
+            recommendations = [recommend_jobs(desc) for desc in descriptions]
             st.write('Recommended Jobs:')
-            st.write(pd.DataFrame(recommendations, columns=['Recommended Jobs']))
+            for rec in recommendations:
+                st.write(rec[['title', 'company_name', 'location']])
         else:
             st.error('The uploaded file must contain a "description" column.')
     
@@ -107,23 +124,21 @@ elif option == 'Predict Candidate Interest':
     location = st.text_input('Location:', key='job_location')
     company_name = st.text_input('Company Name:', key='company_name')
     views = st.number_input('Views:', min_value=0, step=1, key='job_views')
-    applies = st.number_input('Applies:', min_value=0, step=1, key='job_applies')
+    description_length = st.number_input('Description Length:', min_value=0, step=1, key='description_length')
     average_salary = st.number_input('Average Salary:', min_value=0, step=1, key='job_salary')
+    formatted_experience_level = st.selectbox('Experience Level:', ['Entry-level', 'Mid-level', 'Senior-level', 'Manager'], key='experience_level')
+    days_since_listed = st.number_input('Days Since Listed:', min_value=0, step=1, key='days_since_listed')
     work_type = st.selectbox('Work Type:', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'], key='job_work_type')
-    experience_level = st.selectbox('Experience Level:', ['Entry-level', 'Mid-level', 'Senior-level', 'Manager'], key='experience_level')
 
     if st.button('Predict Interest'):
         if title and description and location and company_name:
             features = pd.DataFrame({
-                'title': [title],
-                'description': [description],
-                'location': [location],
-                'company_name': [company_name],
                 'views': [views],
-                'applies': [applies],
+                'description_length': [description_length],
                 'average_salary': [average_salary],
-                'work_type': [work_type],
-                'experience_level': [experience_level]
+                'formatted_experience_level': [formatted_experience_level],
+                'days_since_listed': [days_since_listed],
+                'work_type': [work_type]
             })
             prediction = predictor_model.predict(features)
             st.write('Predicted Candidate Interest:', 'High' if prediction[0] == 1 else 'Low')
