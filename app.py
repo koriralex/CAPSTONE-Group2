@@ -35,7 +35,7 @@ def load_models():
 description_model, knn_model, forest_model = load_models()
 
 # Load dataset for KNN recommendations
-df = pd.read_csv('postings.csv')  
+df = pd.read_csv('postings.csv')  # Ensure df is defined
 
 # Load TF-IDF matrix and vectorizer
 try:
@@ -55,6 +55,14 @@ try:
 except Exception as e:
     st.error(f"Error loading job titles: {e}")
     job_titles = []
+
+# Load job IDs for dropdown
+try:
+    job_id_df = pd.read_csv('job_id_list.csv')
+    job_ids = job_id_df['job_id'].tolist()
+except Exception as e:
+    st.error(f"Error loading job IDs: {e}")
+    job_ids = []
 
 # Set up the Streamlit app
 st.title('Job Recommendation System')
@@ -77,7 +85,7 @@ def recommend_jobs(input_description, top_n=10):
     input_vector = vectorizer.transform([input_description_processed])
     similarities = cosine_similarity(input_vector, tfidf_matrix).flatten()
     indices = similarities.argsort()[-top_n:][::-1]
-    return recommender_df.iloc[indices]
+    return df.iloc[indices]
 
 # Job Recommendations Page
 if page == 'Job Recommendations':
@@ -125,19 +133,20 @@ if page == 'Job Recommendations':
     # Job Recommendations Based on Job ID (KNN Model)
     elif option == 'Recommend Jobs Based on Job ID':
         st.subheader('Job Recommendations Based on Job ID')
-        job_id = st.number_input('Enter Job ID:', min_value=0, step=1)
-
+        selected_job_id = st.selectbox('Select Job ID:', options=job_ids)
+        
         if st.button('Get Recommendations'):
-            if job_id is not None:
-                if 0 <= job_id < len(recommender_df):
-                    distances, indices = knn_model.kneighbors([recommender_df.iloc[job_id][['views', 'applies', 'average_salary']].values])
-                    recommendations = recommender_df.iloc[indices[0]]
+            if selected_job_id is not None:
+                job_id_index = job_ids.index(selected_job_id)
+                if 0 <= job_id_index < len(df):
+                    distances, indices = knn_model.kneighbors([df.iloc[job_id_index][['views', 'applies', 'average_salary']].values])
+                    recommendations = df.iloc[indices[0]]
                     st.write('Recommended Jobs:')
                     st.write(recommendations[['title', 'company_name', 'location']])
                 else:
-                    st.error('Invalid Job ID. Please enter a valid ID.')
+                    st.error('Invalid Job ID. Please select a valid ID.')
             else:
-                st.error('Please enter a job ID.')
+                st.error('Please select a job ID.')
 
     # Job Recommendations Based on Title Filter
     elif option == 'Recommend Jobs Based on Title Filter':
@@ -147,7 +156,7 @@ if page == 'Job Recommendations':
 
         if st.button('Get Recommendations'):
             if selected_title:
-                filtered_jobs = recommender_df[recommender_df['title'] == selected_title]
+                filtered_jobs = df[df['title'] == selected_title]
                 st.write('Top recommended jobs based on your input:')
                 st.write(filtered_jobs.head(num_recommendations))
             else:
@@ -181,17 +190,4 @@ elif page == 'Predict Candidate Interest':
                 'title': [title_processed],
                 'description': [description_processed],
                 'location': [location_processed],
-                'company_name': [company_name_processed],
-                'views': [views],
-                'description_length': [description_length],
-                'average_salary': [average_salary],
-                'formatted_experience_level': [formatted_experience_level],
-                'days_since_listed': [days_since_listed],
-                'work_type': [work_type]
-            })
-
-            # Predict candidate interest
-            prediction = forest_model.predict(input_features)
-            st.write(f'Predicted Candidate Interest: {prediction[0]}')
-        else:
-            st.error('Please fill in all the fields.')
+         
