@@ -5,8 +5,21 @@ from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
 import re
+import os
 
-# Function to load models with error handling
+# Define the path to save profile photos
+UPLOAD_DIR = 'profile_photos'
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
+# Function to save uploaded photo
+def save_uploaded_file(uploaded_file, user_id):
+    file_path = os.path.join(UPLOAD_DIR, f'{user_id}_{uploaded_file.name}')
+    with open(file_path, 'wb') as f:
+        f.write(uploaded_file.read())
+    return file_path
+
+# Load models with error handling
 @st.cache_resource
 def load_models():
     try:
@@ -35,10 +48,7 @@ def load_models():
 description_model, knn_model, forest_model = load_models()
 
 # Load dataset for KNN recommendations
-df = pd.read_csv('postings.csv')  # Ensure df is defined
-
-# Check columns
-st.write(df.columns.tolist())
+df = pd.read_csv('postings.csv')
 
 # Load TF-IDF matrix and vectorizer
 try:
@@ -51,7 +61,7 @@ except Exception as e:
     tfidf_matrix = None
     vectorizer = None
 
-# Load job titles for dropdown
+# Load job titles and IDs for dropdowns
 try:
     title_df = pd.read_csv('title_list.csv')
     job_titles = title_df['title'].tolist()
@@ -59,7 +69,6 @@ except Exception as e:
     st.error(f"Error loading job titles: {e}")
     job_titles = []
 
-# Load job IDs for dropdown
 try:
     job_id_df = pd.read_csv('job_id_list.csv')
     job_ids = job_id_df['job_id'].tolist()
@@ -68,20 +77,86 @@ except Exception as e:
     job_ids = []
 
 # Set up the Streamlit app
-st.title('Job Recommendation System')
+st.set_page_config(page_title="Job Recommendation System", page_icon="📈", layout="wide")
+
+# Add custom CSS for styling
+st.markdown(
+    """
+    <style>
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f0f2f6;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 1200px;
+        margin: auto;
+        padding: 2rem;
+    }
+    .title {
+        font-size: 2rem;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+    .subtitle {
+        font-size: 1.5rem;
+        color: #666;
+        margin-bottom: 1rem;
+    }
+    .main {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .upload-button, .recommend-button {
+        background-color: #007bff;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        font-size: 1rem;
+        margin-top: 1rem;
+    }
+    .upload-button:hover, .recommend-button:hover {
+        background-color: #0056b3;
+    }
+    .uploaded-photo {
+        margin-top: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .success-message, .error-message {
+        font-size: 1rem;
+        margin-top: 1rem;
+    }
+    .success-message {
+        color: #28a745;
+    }
+    .error-message {
+        color: #dc3545;
+    }
+    .page-content {
+        margin-top: 2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Set up the Streamlit app layout
+st.title('Job Recommendation System', anchor='title')
 
 # Sidebar for selecting page
-page = st.sidebar.selectbox('Select Page', 
-                            ['Profile Update',
-                             'Job Recommendations',
-                             'Predict Candidate Interest',
-                             'Feedback'])
+page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
 
 # Function for text preprocessing
 def preprocess_text(text):
     text = text.lower()
-    text = re.sub(r'\W', ' ', text)  # Remove non-word characters
-    text = re.sub(r'\s+', ' ', text)  # Remove extra whitespace
+    text = re.sub(r'\W', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
     return text
 
 # Function to recommend jobs based on description
@@ -94,60 +169,35 @@ def recommend_jobs(input_description, top_n=10):
 
 # Profile Update Page
 if page == 'Profile Update':
-    st.sidebar.header('Profile Update')
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Update Your Profile', anchor='subtitle')
 
     # Profile photo upload
-    uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
+    uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
+    
     if uploaded_photo is not None:
-        st.sidebar.image(uploaded_photo, caption='Uploaded Profile Photo', use_column_width=True)
-    
-    # Name update
-    name = st.sidebar.text_input('Enter your name:')
-    if name:
-        st.sidebar.write(f'Name: {name}')
-    
-    # CV upload and processing
-    uploaded_cv = st.file_uploader("Upload your CV (CSV, TXT, PDF):", type=['csv', 'txt', 'pdf'])
-    if uploaded_cv is not None:
-        if uploaded_cv.type == 'text/csv':
-            cv_df = pd.read_csv(uploaded_cv)
-        elif uploaded_cv.type == 'text/plain':
-            cv_content = uploaded_cv.read().decode('utf-8')
-            cv_df = pd.DataFrame({'description': cv_content.split('\n')})
-        elif uploaded_cv.type == 'application/pdf':
-            reader = PyPDF2.PdfReader(io.BytesIO(uploaded_cv.read()))
-            cv_content = ''
-            for page_num in range(len(reader.pages)):
-                page = reader.pages[page_num]
-                cv_content += page.extract_text()
-            cv_df = pd.DataFrame({'description': cv_content.split('\n')})
-        
-        if 'description' in cv_df.columns:
-            descriptions = cv_df['description'].tolist()
-            recommendations = [recommend_jobs(desc) for desc in descriptions]
-            st.write('Recommended Jobs based on your CV:')
-            for rec in recommendations:
-                st.write(rec[['title', 'company_name', 'location']])
-        else:
-            st.error('The uploaded CV must contain a "description" column.')
+        # Example user ID
+        user_id = 'example_user_id'
+        photo_path = save_uploaded_file(uploaded_photo, user_id)
+        st.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
+        st.markdown('<div class="success-message">Profile photo uploaded successfully!</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Job Recommendations Page
 elif page == 'Job Recommendations':
-    st.sidebar.title('Recommendation Options')
-    option = st.sidebar.selectbox('Select Recommendation Type', 
-                                  ['Recommend Jobs Based on Description',
-                                   'Recommend Jobs Based on Job ID',
-                                   'Recommend Jobs Based on Title Filter'])
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Job Recommendations', anchor='subtitle')
+
+    option = st.selectbox('Select Recommendation Type', ['Recommend Jobs Based on Description', 'Recommend Jobs Based on Job ID', 'Recommend Jobs Based on Title Filter'])
 
     # Job Recommendations Based on Description
     if option == 'Recommend Jobs Based on Description':
         st.subheader('Job Recommendations Based on Description')
 
-        # File upload
         uploaded_file = st.file_uploader("Upload a file with job descriptions (CSV, TXT, or PDF):", type=['csv', 'txt', 'pdf'])
 
         if uploaded_file is not None:
-            # Determine the file type and read the content
             if uploaded_file.type == 'text/csv':
                 file_df = pd.read_csv(uploaded_file)
             elif uploaded_file.type == 'text/plain':
@@ -161,7 +211,6 @@ elif page == 'Job Recommendations':
                     file_content += page.extract_text()
                 file_df = pd.DataFrame({'description': file_content.split('\n')})
 
-            # Process descriptions and make recommendations
             if 'description' in file_df.columns:
                 descriptions = file_df['description'].tolist()
                 recommendations = [recommend_jobs(desc) for desc in descriptions]
@@ -169,10 +218,7 @@ elif page == 'Job Recommendations':
                 for rec in recommendations:
                     st.write(rec[['title', 'company_name', 'location']])
             else:
-                st.error('The uploaded file must contain a "description" column.')
-
-        else:
-            st.info('Please upload a file to get recommendations.')
+                st.markdown('<div class="error-message">The uploaded file must contain a "description" column.</div>', unsafe_allow_html=True)
 
     # Job Recommendations Based on Job ID (KNN Model)
     elif option == 'Recommend Jobs Based on Job ID':
@@ -188,76 +234,56 @@ elif page == 'Job Recommendations':
                     st.write('Recommended Jobs:')
                     st.write(recommendations[['title', 'company_name', 'location']])
                 else:
-                    st.error('Invalid Job ID. Please select a valid ID.')
+                    st.markdown('<div class="error-message">Invalid Job ID. Please select a valid ID.</div>', unsafe_allow_html=True)
             else:
-                st.error('Please select a job ID.')
+                st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html=True)
 
     # Job Recommendations Based on Title Filter
     elif option == 'Recommend Jobs Based on Title Filter':
         st.subheader('Job Recommendations Based on Title Filter')
-        selected_title = st.selectbox('Select Job Title:', options=job_titles)
-        num_recommendations = st.number_input('Enter the number of top jobs to recommend:', min_value=1, max_value=20, value=5)
-
+        title_filter = st.selectbox('Select Job Title Filter:', options=job_titles)
+        
         if st.button('Get Recommendations'):
-            if selected_title:
-                filtered_jobs = df[df['title'] == selected_title]
-                st.write('Top recommended jobs based on your input:')
-                st.write(filtered_jobs.head(num_recommendations))
+            if title_filter:
+                filtered_jobs = df[df['title'].str.contains(title_filter, case=False, na=False)]
+                st.write('Filtered Jobs:')
+                st.write(filtered_jobs[['title', 'company_name', 'location']])
             else:
-                st.error('Please select a job title.')
+                st.markdown('<div class="error-message">Please select a job title filter.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Predict Candidate Interest Page
 elif page == 'Predict Candidate Interest':
-    st.subheader('Predict Candidate Interest')
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Predict Candidate Interest', anchor='subtitle')
 
-    title = st.text_input('Job Title:', key='job_title')
-    description = st.text_area('Job Description:', key='job_description')
-    location = st.text_input('Location:', key='job_location')
-    company_name = st.text_input('Company Name:', key='company_name')
-    views = st.number_input('Views:', min_value=0, step=1, key='job_views')
-    description_length = st.number_input('Description Length:', min_value=0, step=1, key='description_length')
-    average_salary = st.number_input('Average Salary:', min_value=0, step=1, key='job_salary')
-    formatted_experience_level = st.selectbox('Experience Level:', ['Entry-level', 'Mid-level', 'Senior-level', 'Manager'], key='experience_level')
-    days_since_listed = st.number_input('Days Since Listed:', min_value=0, step=1, key='days_since_listed')
-    work_type = st.selectbox('Work Type:', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'], key='job_work_type')
+    uploaded_file = st.file_uploader("Upload a file with candidate data (CSV):", type=['csv'])
 
-    if st.button('Predict Interest'):
-        if title and description and location and company_name:
-            # Preprocess the text fields
-            title_processed = preprocess_text(title)
-            description_processed = preprocess_text(description)
-            location_processed = preprocess_text(location)
-            company_name_processed = preprocess_text(company_name)
+    if uploaded_file is not None:
+        candidate_df = pd.read_csv(uploaded_file)
 
-            # Create input feature array for prediction
-            input_features = pd.DataFrame({
-                'title': [title_processed],
-                'description': [description_processed],
-                'location': [location_processed],
-                'company_name': [company_name_processed],
-                'views': [views],
-                'description_length': [description_length],
-                'average_salary': [average_salary],
-                'formatted_experience_level': [formatted_experience_level],
-                'days_since_listed': [days_since_listed],
-                'work_type': [work_type]
-            })
-
-            # Predict candidate interest
-            prediction = forest_model.predict(input_features)
-            st.write(f'Predicted Candidate Interest: {prediction[0]}')
+        # Ensure required columns are present
+        if {'job_id', 'processed_title', 'processed_description', 'processed_location', 'views', 'applies', 'processed_company_name', 'work_type', 'average_salary'}.issubset(candidate_df.columns):
+            # Implement your prediction logic here
+            st.write('Predicted Candidate Interest:')
+            # Example placeholder for predictions
+            st.write(candidate_df[['job_id', 'processed_title', 'processed_description']])
         else:
-            st.error('Please fill in all the fields.')
+            st.markdown('<div class="error-message">The uploaded file must contain the required columns.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Feedback Page
 elif page == 'Feedback':
-    st.subheader('We value your feedback!')
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Provide Your Feedback', anchor='subtitle')
 
-    feedback = st.text_area('Please provide your feedback or suggestions:', height=200)
-
+    feedback = st.text_area('Your Feedback:', height=150)
     if st.button('Submit Feedback'):
         if feedback:
-            # Here you can add code to store the feedback, e.g., save to a file or send to an API
-            st.success('Thank you for your feedback!')
+            st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
-            st.error('Please enter some feedback before submitting.')
+            st.markdown('<div class="error-message">Please enter your feedback before submitting.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
