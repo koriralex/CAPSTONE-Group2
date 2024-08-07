@@ -24,3 +24,5 @@ streamlit==1.25.0
 # Additional utilities
 scipy==1.11.2
 fuzzywuzzy==0.18.0
+PyPDF2
+io
