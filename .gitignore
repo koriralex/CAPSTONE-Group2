@@ -1,1 +1,19 @@
 
+# Python bytecode
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+*.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Streamlit specific
+*.streamlit/
+
+# Data files
+*.csv
+*.pkl
