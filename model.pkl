@@ -1,0 +1,60 @@
+from sklearn.ensemble import RandomForestClassifier
+
+# Define the custom color palette
+custom_palette = sns.color_palette("husl", 10)
+
+# Initialize the model
+forest_model = RandomForestClassifier(random_state=42)
+
+# Perform cross-validation
+print("Model: Random Forest")
+cv_results_forest = perform_cross_validation(forest_model, X_balanced, y_balanced)
+
+# Train the model on the entire balanced dataset
+forest_model.fit(X_balanced, y_balanced)
+
+# Predict on the entire balanced dataset
+y_pred_forest = forest_model.predict(X_balanced)
+
+# Evaluate the model
+accuracy_forest = accuracy_score(y_balanced, y_pred_forest)
+classification_rep_forest = classification_report(y_balanced, y_pred_forest, output_dict=True)
+roc_auc_forest = roc_auc_score(y_balanced, forest_model.predict_proba(X_balanced)[:, 1])
+conf_matrix_forest = confusion_matrix(y_balanced, y_pred_forest)
+
+print(f"Test Accuracy: {accuracy_forest}")
+print(f"Classification Report:\n{classification_report(y_balanced, y_pred_forest)}")
+print(f"ROC-AUC Score: {roc_auc_forest}")
+
+# Convert the classification report to a DataFrame
+metrics_df_forest = pd.DataFrame(classification_rep_forest).transpose()
+
+# Filter out the rows we need (precision, recall, f1-score)
+metrics_filtered_forest = metrics_df_forest.loc[['0', '1', 'weighted avg'], ['precision', 'recall', 'f1-score']]
+metrics_filtered_forest.columns = ['Precision', 'Recall', 'F1 Score']
+metrics_filtered_forest = metrics_filtered_forest.reset_index().rename(columns={'index': 'Class'})
+
+# Plot confusion matrix, metrics, and learning curve side by side
+fig, axs = plt.subplots(1, 3, figsize=(24, 6))
+
+# Plot confusion matrix
+sns.heatmap(conf_matrix_forest, annot=True, fmt='d', cmap=sns.color_palette(custom_palette), cbar=False, 
+            xticklabels=['Class 0', 'Class 1'], yticklabels=['Class 0', 'Class 1'], ax=axs[0])
+axs[0].set_xlabel('Predicted')
+axs[0].set_ylabel('Actual')
+axs[0].set_title('Confusion Matrix - Random Forest')
+
+# Plot metrics
+metrics_melted_forest = metrics_filtered_forest.melt(id_vars='Class', var_name='Metric', value_name='Score')
+sns.barplot(x='Metric', y='Score', hue='Class', data=metrics_melted_forest, palette=custom_palette, ax=axs[1])
+axs[1].set_title('Random Forest Metrics')
+axs[1].set_xlabel('Metric')
+axs[1].set_ylabel('Score')
+axs[1].legend(title='Class')
+
+# Plot learning curve
+plot_learning_curve(forest_model, X_balanced, y_balanced, "Random Forest", axs[2])
+
+
+plt.tight_layout()
+plt.show()
