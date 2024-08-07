@@ -1,0 +1,3 @@
+# Load the TF-IDF Vectorizer
+with open('tfidf_vectorizer.pkl', 'rb') as file:
+    loaded_vectorizer = pickle.load(file)
