@@ -20,7 +20,7 @@ def load_models():
 description_model, knn_model, predictor_model = load_models()
 
 # Load dataset for KNN recommendations
-recommender_df = pd.read_csv('recommender_dataset.csv')  # Adjust path as needed
+recommender_df = pd.read_csv('postings.csv')  # Adjust path as needed
 
 # Set up the Streamlit app
 st.title('Job Recommendation System')
