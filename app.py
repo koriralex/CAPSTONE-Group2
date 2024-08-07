@@ -37,6 +37,9 @@ description_model, knn_model, forest_model = load_models()
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')  # Ensure df is defined
 
+# Check columns
+st.write(df.columns.tolist())
+
 # Load TF-IDF matrix and vectorizer
 try:
     with open('tfidf_matrix.pkl', 'rb') as file:
@@ -188,19 +191,3 @@ elif page == 'Predict Candidate Interest':
             # Create input feature array for prediction
             input_features = pd.DataFrame({
                 'title': [title_processed],
-                'description': [description_processed],
-                'location': [location_processed],
-                'company_name': [company_name_processed],
-                'views': [views],
-                'description_length': [description_length],
-                'average_salary': [average_salary],
-                'formatted_experience_level': [formatted_experience_level],
-                'days_since_listed': [days_since_listed],
-                'work_type': [work_type]
-            })
-
-            # Predict candidate interest
-            prediction = forest_model.predict(input_features)
-            st.write(f'Predicted Candidate Interest: {prediction[0]}')
-        else:
-            st.error('Please fill in all the fields.')
