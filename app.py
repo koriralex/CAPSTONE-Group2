@@ -11,23 +11,23 @@ import re
 def load_models():
     try:
         with open('description.pkl', 'rb') as f:
-            description_model = pickle.load(f)
+            description_model = description.load(f)
     except Exception as e:
         st.error(f"Error loading description model: {e}")
         description_model = None
 
     try:
         with open('knn_model.pkl', 'rb') as f:
-            knn_model = pickle.load(f)
+            knn_model = knn_model.load(f)
     except Exception as e:
         st.error(f"Error loading KNN model: {e}")
         knn_model = None
 
     try:
         with open('forest_model.pkl', 'rb') as f:
-            forest_model = pickle.load(f)
+            forest_model = forest_model.load(f)
     except Exception as e:
-        st.error(f"Error loading predictor model: {e}")
+        st.error(f"Error loading forest model: {e}")
         forest_model = None
 
     return description_model, knn_model, forest_model
