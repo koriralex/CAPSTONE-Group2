@@ -72,8 +72,10 @@ st.title('Job Recommendation System')
 
 # Sidebar for selecting page
 page = st.sidebar.selectbox('Select Page', 
-                            ['Job Recommendations',
-                             'Predict Candidate Interest'])
+                            ['Profile Update',
+                             'Job Recommendations',
+                             'Predict Candidate Interest',
+                             'Feedback'])
 
 # Function for text preprocessing
 def preprocess_text(text):
@@ -90,8 +92,47 @@ def recommend_jobs(input_description, top_n=10):
     indices = similarities.argsort()[-top_n:][::-1]
     return df.iloc[indices]
 
+# Profile Update Page
+if page == 'Profile Update':
+    st.sidebar.header('Profile Update')
+
+    # Profile photo upload
+    uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
+    if uploaded_photo is not None:
+        st.sidebar.image(uploaded_photo, caption='Uploaded Profile Photo', use_column_width=True)
+    
+    # Name update
+    name = st.sidebar.text_input('Enter your name:')
+    if name:
+        st.sidebar.write(f'Name: {name}')
+    
+    # CV upload and processing
+    uploaded_cv = st.file_uploader("Upload your CV (CSV, TXT, PDF):", type=['csv', 'txt', 'pdf'])
+    if uploaded_cv is not None:
+        if uploaded_cv.type == 'text/csv':
+            cv_df = pd.read_csv(uploaded_cv)
+        elif uploaded_cv.type == 'text/plain':
+            cv_content = uploaded_cv.read().decode('utf-8')
+            cv_df = pd.DataFrame({'description': cv_content.split('\n')})
+        elif uploaded_cv.type == 'application/pdf':
+            reader = PyPDF2.PdfReader(io.BytesIO(uploaded_cv.read()))
+            cv_content = ''
+            for page_num in range(len(reader.pages)):
+                page = reader.pages[page_num]
+                cv_content += page.extract_text()
+            cv_df = pd.DataFrame({'description': cv_content.split('\n')})
+        
+        if 'description' in cv_df.columns:
+            descriptions = cv_df['description'].tolist()
+            recommendations = [recommend_jobs(desc) for desc in descriptions]
+            st.write('Recommended Jobs based on your CV:')
+            for rec in recommendations:
+                st.write(rec[['title', 'company_name', 'location']])
+        else:
+            st.error('The uploaded CV must contain a "description" column.')
+
 # Job Recommendations Page
-if page == 'Job Recommendations':
+elif page == 'Job Recommendations':
     st.sidebar.title('Recommendation Options')
     option = st.sidebar.selectbox('Select Recommendation Type', 
                                   ['Recommend Jobs Based on Description',
@@ -207,3 +248,16 @@ elif page == 'Predict Candidate Interest':
             st.write(f'Predicted Candidate Interest: {prediction[0]}')
         else:
             st.error('Please fill in all the fields.')
+
+# Feedback Page
+elif page == 'Feedback':
+    st.subheader('We value your feedback!')
+
+    feedback = st.text_area('Please provide your feedback or suggestions:', height=200)
+
+    if st.button('Submit Feedback'):
+        if feedback:
+            # Here you can add code to store the feedback, e.g., save to a file or send to an API
+            st.success('Thank you for your feedback!')
+        else:
+            st.error('Please enter some feedback before submitting.')
