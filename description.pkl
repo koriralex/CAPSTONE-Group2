@@ -1,50 +1,13 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import re
+# Save the TF-IDF Vectorizer and tfidf_matrix to a file
+with open('tfidf_vectorizer.pkl', 'wb') as file:
+    pickle.dump(vectorizer, file)
 
-# Initialize the TF-IDF Vectorizer and transform the job descriptions
-vectorizer = TfidfVectorizer()
-tfidf_matrix = vectorizer.fit_transform(df['description'])
+with open('tfidf_matrix.pkl', 'wb') as file:
+    pickle.dump(tfidf_matrix, file)
 
-def preprocess_text(text):
-    # Improved text preprocessing
-    text = text.lower()
-    text = re.sub(r'\W', ' ', text)  # Remove non-word characters
-    text = re.sub(r'\s+', ' ', text)  # Remove extra whitespace
-    return text
-
-def recommend_jobs(input_description, top_n=10):
-    input_description_processed = preprocess_text(input_description)
-    input_vector = vectorizer.transform([input_description_processed])
-    similarities = cosine_similarity(input_vector, tfidf_matrix).flatten()
-    indices = similarities.argsort()[-top_n:][::-1]
-    return df.iloc[indices]
-
-def main():
-    while True:
-        print("\nJob Recommendation System")
-        print("1. Recommend Jobs based on Description")
-        print("2. Exit")
-        choice = input("Enter your choice (1/2): ")
-        
-        if choice == '1':
-            input_desc = input("Enter job description to find recommendations: ")
-            if not input_desc.strip():
-                print("Job description cannot be empty. Please enter a valid description.")
-                continue
-            recommended_jobs = recommend_jobs(input_desc)
-            if not recommended_jobs.empty:
-                print("\nRecommended Jobs:")
-                print(recommended_jobs[['title', 'company_name', 'location']])
-            else:
-                print("No recommendations found.")
-        
-        elif choice == '2':
-            print("Exiting...")
-            break
-        
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
-
-if __name__ == "__main__":
-    main()
+# Save the DataFrame to a file (optional but recommended if large)
+with open('job_data.pkl', 'wb') as file:
+    pickle.dump(df, file)
+# Load the pickled DataFrame
+    with open('job_data.pkl', 'rb') as file:
+        loaded_df = pickle.load(file)
