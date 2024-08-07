@@ -1,4 +1,0 @@
-# Save the trained KNN model to a file
-model_filename = 'knn_model.pkl'
-with open(model_filename, 'wb') as file:
-    pickle.dump(knn, file)
