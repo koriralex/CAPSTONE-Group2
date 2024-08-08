@@ -5,6 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
 import os
+import re
 
 # Set up the Streamlit app
 st.set_page_config(page_title="Job Recommendation System", page_icon="📈", layout="wide")
@@ -95,7 +96,32 @@ def display_header(title, image_url):
 
 # Sidebar for selecting page and user input
 st.sidebar.header("User Profile")
+
+# Profile photo upload
+uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
+if uploaded_photo is not None:
+    user_id = 'example_user_id'  # Replace with actual user ID if available
+    photo_path = save_uploaded_file(uploaded_photo, user_id)
+    st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
+
+# Username
 username = st.sidebar.text_input("Username")
+
+# Email
+email = st.sidebar.text_input("Email")
+
+# Email validation
+def is_valid_email(email):
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
+
+email_valid = is_valid_email(email)
+if not email_valid and email:
+    st.sidebar.markdown('<div class="error-message">Please enter a valid email address.</div>', unsafe_allow_html=True)
+
+# Toggle keys
+toggle_1 = st.sidebar.checkbox('Toggle Key 1')
+toggle_2 = st.sidebar.checkbox('Toggle Key 2')
+
 save_button = st.sidebar.button("Save")
 
 # Image URL
@@ -112,16 +138,6 @@ if page == 'Profile Update':
     if save_button:
         st.markdown(f'<div class="success-message">Username "{username}" saved successfully!</div>', unsafe_allow_html=True)
 
-    # Profile photo upload
-    uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
-    
-    if uploaded_photo is not None:
-        # Example user ID
-        user_id = username if username else 'example_user_id'
-        photo_path = save_uploaded_file(uploaded_photo, user_id)
-        st.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
-        st.markdown('<div class="success-message">Profile photo uploaded successfully!</div>', unsafe_allow_html=True)
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Job Recommendations Page
@@ -131,7 +147,6 @@ elif page == 'Job Recommendations':
 
     option = st.selectbox('Select Recommendation Type', ['Recommend Jobs Based on Description', 'Recommend Jobs Based on Job ID', 'Recommend Jobs Based on Title Filter'])
 
-    # Job Recommendations Based on Description
     if option == 'Recommend Jobs Based on Description':
         st.subheader('Job Recommendations Based on Description')
 
@@ -160,7 +175,6 @@ elif page == 'Job Recommendations':
             else:
                 st.markdown('<div class="error-message">The uploaded file must contain a "description" column.</div>', unsafe_allow_html=True)
 
-    # Job Recommendations Based on Job ID (KNN Model)
     elif option == 'Recommend Jobs Based on Job ID':
         st.subheader('Job Recommendations Based on Job ID')
         selected_job_id = st.selectbox('Select Job ID:', options=job_ids)
@@ -178,7 +192,6 @@ elif page == 'Job Recommendations':
             else:
                 st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html=True)
 
-    # Job Recommendations Based on Title Filter
     elif option == 'Recommend Jobs Based on Title Filter':
         st.subheader('Job Recommendations Based on Title Filter')
         title_filter = st.selectbox('Select Job Title Filter:', options=job_titles)
@@ -203,7 +216,11 @@ elif page == 'Predict Candidate Interest':
 
     if uploaded_file is not None:
         candidate_df = pd.read_csv(uploaded_file)
-        # Example candidate interest prediction logic here
+        st.write('Candidate Data:')
+        st.write(candidate_df.head())
+
+        # Placeholder for model prediction
+        st.markdown('<div class="success-message">Model prediction will be implemented here.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -211,9 +228,10 @@ elif page == 'Predict Candidate Interest':
 elif page == 'Feedback':
     display_header('Feedback', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Submit Your Feedback', anchor='subtitle')
+    st.subheader('We Value Your Feedback', anchor='subtitle')
 
-    feedback = st.text_area("Your Feedback:")
+    feedback = st.text_area("Enter your feedback here:")
+
     submit_button = st.button("Submit Feedback")
 
     if submit_button:
