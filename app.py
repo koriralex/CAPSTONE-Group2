@@ -22,26 +22,17 @@ def save_uploaded_file(uploaded_file, user_id):
         f.write(uploaded_file.read())
     return file_path
 
-# Load models with error handling
+# Load models 
 @st.cache_resource
 def load_models():
-    try:
-        with open('description.pkl', 'rb') as f:
-            description_model = pickle.load(f)
-    except Exception as e:
-        description_model = None
+    with open('description.pkl', 'rb') as f:
+        description_model = pickle.load(f)
 
-    try:
-        with open('knn_model.pkl', 'rb') as f:
-            knn_model = pickle.load(f)
-    except Exception as e:
-        knn_model = None
+    with open('knn_model.pkl', 'rb') as f:
+        knn_model = pickle.load(f)
 
-    try:
-        with open('forest_model.pkl', 'rb') as f:
-            forest_model = pickle.load(f)
-    except Exception as e:
-        forest_model = None
+    with open('forest_model.pkl', 'rb') as f:
+        forest_model = pickle.load(f)
 
     return description_model, knn_model, forest_model
 
@@ -51,27 +42,17 @@ description_model, knn_model, forest_model = load_models()
 df = pd.read_csv('postings.csv')
 
 # Load TF-IDF matrix and vectorizer
-try:
-    with open('tfidf_matrix.pkl', 'rb') as file:
-        tfidf_matrix = pickle.load(file)
-    with open('vectorizer.pkl', 'rb') as file:
-        vectorizer = pickle.load(file)
-except Exception as e:
-    tfidf_matrix = None
-    vectorizer = None
+with open('tfidf_matrix.pkl', 'rb') as file:
+    tfidf_matrix = pickle.load(file)
+with open('vectorizer.pkl', 'rb') as file:
+    vectorizer = pickle.load(file)
 
 # Load job titles and IDs for dropdowns
-try:
-    title_df = pd.read_csv('title_list.csv')
-    job_titles = title_df['title'].tolist()
-except Exception as e:
-    job_titles = []
+title_df = pd.read_csv('title_list.csv')
+job_titles = title_df['title'].tolist()
 
-try:
-    job_id_df = pd.read_csv('job_id_list.csv')
-    job_ids = job_id_df['job_id'].tolist()
-except Exception as e:
-    job_ids = []
+job_id_df = pd.read_csv('job_id_list.csv')
+job_ids = job_id_df['job_id'].tolist()
 
 # Add custom CSS for styling from an external GitHub file
 st.markdown(
@@ -230,7 +211,7 @@ elif page == 'Predict Candidate Interest':
             prediction = forest_model.predict(input_data)
             st.write(f'Predicted Interest: {"Interested" if prediction[0] == 1 else "Not Interested"}')
         else:
-            st.markdown('<div class="error-message">Forest model is not loaded.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-message">The predictor model could not be loaded.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -238,19 +219,24 @@ elif page == 'Predict Candidate Interest':
 elif page == 'Feedback':
     display_header('Feedback', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('We Value Your Feedback', anchor='subtitle')
+    st.subheader('Feedback', anchor='subtitle')
 
-    feedback = st.text_area("Enter your feedback here:")
+    name = st.text_input('Name')
+    email = st.text_input('Email')
+    feedback = st.text_area('Feedback')
 
-    submit_button = st.button("Submit Feedback")
-
-    if submit_button:
-        if feedback:
+    if st.button('Submit'):
+        if name and email and feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="error-message">Please enter your feedback before submitting.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-message">Please fill in all fields before submitting.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Footer
-st.markdown('<footer style="background-color: #007bff; color: #ffffff; padding: 1rem; text-align: center; margin-top: 2rem;">Job Recommendation System © 2024</footer>', unsafe_allow_html=True)
+# Function to recommend jobs based on a job description
+def recommend_jobs(job_description):
+    job_description_tfidf = vectorizer.transform([job_description])
+    similarities = cosine_similarity(job_description_tfidf, tfidf_matrix)
+    similar_indices = similarities.argsort().flatten()[-10:]
+    similar_jobs = df.iloc[similar_indices][::-1]  # Reverse to show most similar first
+    return similar_jobs
