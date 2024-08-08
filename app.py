@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib  # Replace pickle with joblib for loading models
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
@@ -22,39 +22,26 @@ def save_uploaded_file(uploaded_file, user_id):
         f.write(uploaded_file.read())
     return file_path
 
-# Load models with individual error handling
+# Load models using joblib
 @st.cache_resource
 def load_models():
-    description_model = knn_model = forest_model = None
     try:
-        with open('description.pkl', 'rb') as f:
-            description_model = pickle.load(f)
-    except pickle.UnpicklingError:
-        st.error("Error unpickling 'description.pkl'. Please check the file for corruption.")
-    except FileNotFoundError:
-        st.error("'description.pkl' file not found. Please ensure the file is present in the correct directory.")
+        description_model = joblib.load('description.pkl')
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading 'description.pkl': {e}")
+        description_model = None
+        st.error(f"Error loading description model: {e}")
 
     try:
-        with open('knn_model.pkl', 'rb') as f:
-            knn_model = pickle.load(f)
-    except pickle.UnpicklingError:
-        st.error("Error unpickling 'knn_model.pkl'. Please check the file for corruption.")
-    except FileNotFoundError:
-        st.error("'knn_model.pkl' file not found. Please ensure the file is present in the correct directory.")
+        knn_model = joblib.load('knn_model.pkl')
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading 'knn_model.pkl': {e}")
+        knn_model = None
+        st.error(f"Error loading KNN model: {e}")
 
     try:
-        with open('forest_model.pkl', 'rb') as f:
-            forest_model = pickle.load(f)
-    except pickle.UnpicklingError:
-        st.error("Error unpickling 'forest_model.pkl'. Please check the file for corruption.")
-    except FileNotFoundError:
-        st.error("'forest_model.pkl' file not found. Please ensure the file is present in the correct directory.")
+        forest_model = joblib.load('forest_model.pkl')
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading 'forest_model.pkl': {e}")
+        forest_model = None
+        st.error(f"Error loading Forest model: {e}")
 
     return description_model, knn_model, forest_model
 
@@ -63,19 +50,29 @@ description_model, knn_model, forest_model = load_models()
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')
 
-# Load TF-IDF matrix and vectorizer
-with open('tfidf_matrix.pkl', 'rb') as file:
-    tfidf_matrix = pickle.load(file)
-with open('vectorizer.pkl', 'rb') as file:
-    vectorizer = pickle.load(file)
+# Load TF-IDF matrix and vectorizer using joblib
+try:
+    tfidf_matrix = joblib.load('tfidf_matrix.pkl')
+    vectorizer = joblib.load('vectorizer.pkl')
+except Exception as e:
+    tfidf_matrix = None
+    vectorizer = None
+    st.error(f"Error loading TF-IDF matrix or vectorizer: {e}")
 
 # Load job titles and IDs for dropdowns
-title_df = pd.read_csv('title_list.csv')
-job_titles = title_df['title'].tolist()
+try:
+    title_df = pd.read_csv('title_list.csv')
+    job_titles = title_df['title'].tolist()
+except Exception as e:
+    job_titles = []
+    st.error(f"Error loading job titles: {e}")
 
-job_id_df = pd.read_csv('job_id_list.csv')
-job_ids = job_id_df['job_id'].tolist()
-
+try:
+    job_id_df = pd.read_csv('job_id_list.csv')
+    job_ids = job_id_df['job_id'].tolist()
+except Exception as e:
+    job_ids = []
+    st.error(f"Error loading job IDs: {e}")
 # Add custom CSS for styling from an external GitHub file
 st.markdown(
     """
