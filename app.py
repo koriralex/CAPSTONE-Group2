@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pickle
+from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
 import os
@@ -24,31 +25,30 @@ def save_uploaded_file(uploaded_file, user_id):
 # Load models with error handling
 @st.cache_resource
 def load_models():
-    models = {}
     try:
         with open('description.pkl', 'rb') as f:
-            models['description_model'] = pickle.load(f)
+            description_model = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading description model: {e}")
+        description_model = None
 
     try:
         with open('knn_model.pkl', 'rb') as f:
-            models['knn_model'] = pickle.load(f)
+            knn_model = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading KNN model: {e}")
+        knn_model = None
 
     try:
         with open('forest_model.pkl', 'rb') as f:
-            models['forest_model'] = pickle.load(f)
+            forest_model = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading forest model: {e}")
+        forest_model = None
 
-    return models
+    return description_model, knn_model, forest_model
 
-models = load_models()
-description_model = models.get('description_model')
-knn_model = models.get('knn_model')
-forest_model = models.get('forest_model')
+description_model, knn_model, forest_model = load_models()
 
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')
@@ -79,7 +79,7 @@ except Exception as e:
     st.error(f"Error loading job IDs: {e}")
     job_ids = []
 
-# Add custom CSS for styling
+# Add custom CSS for styling from an external GitHub file
 st.markdown(
     """
     <style>
@@ -100,12 +100,16 @@ st.sidebar.header("User Profile")
 # Profile photo upload
 uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG, max 5MB):", type=['jpg', 'png'])
 if uploaded_photo is not None:
-    if uploaded_photo.size > 5 * 1024 * 1024:
+    # Check file size
+    file_size = len(uploaded_photo.read())  # Read the entire file to get its size
+    uploaded_photo.seek(0)  # Reset file pointer to the beginning after reading
+
+    if file_size > 5 * 1024 * 1024:  # 5MB limit
         st.sidebar.error("The file size should not exceed 5MB.")
     else:
         user_id = 'example_user_id'  # Replace with actual user ID if available
         photo_path = save_uploaded_file(uploaded_photo, user_id)
-        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True)
+        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG')
 
 # Username
 username = st.sidebar.text_input("Username")
@@ -167,7 +171,7 @@ elif page == 'Job Recommendations':
 
             if 'description' in file_df.columns:
                 descriptions = file_df['description'].tolist()
-                recommendations = [recommend_jobs(desc) for desc in descriptions]  # Ensure recommend_jobs is defined
+                recommendations = [recommend_jobs(desc) for desc in descriptions]
                 st.write('Recommended Jobs:')
                 for rec in recommendations:
                     st.write(rec[['title', 'company_name', 'location']])
