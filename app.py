@@ -239,3 +239,55 @@ elif page == 'Job Recommendations':
                     st.markdown('<div class="error-message">Invalid Job ID. Please select a valid ID.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html
+                            = True)
+
+    # Job Recommendations Based on Title Filter
+    elif option == 'Recommend Jobs Based on Title Filter':
+        st.subheader('Job Recommendations Based on Title Filter')
+        selected_job_title = st.selectbox('Select Job Title:', options=job_titles)
+        
+        if st.button('Get Recommendations'):
+            if selected_job_title is not None:
+                filtered_df = df[df['title'].str.contains(selected_job_title, case=False, na=False)]
+                st.write('Recommended Jobs:')
+                st.write(filtered_df[['title', 'company_name', 'location']])
+            else:
+                st.markdown('<div class="error-message">Please select a job title.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Predict Candidate Interest Page
+elif page == 'Predict Candidate Interest':
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Predict Candidate Interest', anchor='subtitle')
+
+    uploaded_file = st.file_uploader("Upload a file with candidate and job details (CSV):", type=['csv'])
+
+    if uploaded_file is not None:
+        file_df = pd.read_csv(uploaded_file)
+        
+        if all(col in file_df.columns for col in ['candidate_id', 'job_id', 'views', 'applies']):
+            predictions = forest_model.predict(file_df[['views', 'applies']])
+            file_df['interest'] = predictions
+            st.write('Predictions:')
+            st.write(file_df[['candidate_id', 'job_id', 'interest']])
+        else:
+            st.markdown('<div class="error-message">The uploaded file must contain "candidate_id", "job_id", "views", and "applies" columns.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Feedback Page
+elif page == 'Feedback':
+    st.markdown('<div class="container main">', unsafe_allow_html=True)
+    st.subheader('Feedback', anchor='subtitle')
+
+    feedback_text = st.text_area("Please provide your feedback:")
+    submit_button = st.button("Submit")
+
+    if submit_button and feedback_text:
+        st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
+    elif submit_button:
+        st.markdown('<div class="error-message">Feedback cannot be empty.</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
