@@ -4,6 +4,7 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
+import re
 import os
 
 # Set up the Streamlit app
@@ -68,7 +69,7 @@ try:
     title_df = pd.read_csv('title_list.csv')
     job_titles = title_df['title'].tolist()
 except Exception as e:
-        st.error(f"Error loading job titles: {e}")
+    st.error(f"Error loading job titles: {e}")
     job_titles = []
 
 try:
@@ -88,50 +89,35 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Function to display header
+# Set up the Streamlit app layout
 def display_header(title, image_url):
     st.markdown(f'<h1 class="title">{title}</h1>', unsafe_allow_html=True)
-    st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 100%; border-radius: 8px;">', unsafe_allow_html=True)
+    st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 80%; max-width: 1200px; border-radius: 8px; margin-bottom: 1rem;">', unsafe_allow_html=True)
 
-# Image URL for headers
+# Sidebar for selecting page and user input
+st.sidebar.header("User Profile")
+username = st.sidebar.text_input("Username")
+save_button = st.sidebar.button("Save")
+
+# Image URL
 header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
 
-# Sidebar for selecting page
-page = st.sidebar.radio('Select Page', ['Profile', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
-
-# Function to display profile in the sidebar
-def sidebar_profile():
-    st.sidebar.markdown("## User Profile")
-    first_name = st.sidebar.text_input("First Name:")
-    last_name = st.sidebar.text_input("Last Name:")
-    full_name = f"{first_name} {last_name}"
-
-    uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'], key="profile_photo")
-    
-    if st.sidebar.button("Save Profile"):
-        if uploaded_photo is not None:
-            photo_path = save_uploaded_file(uploaded_photo, full_name)
-            st.sidebar.image(photo_path, caption='Profile Photo', use_column_width=True, output_format='JPEG')
-            st.sidebar.markdown(f"**Name:** {full_name}")
-            return full_name, photo_path
-        else:
-            st.sidebar.markdown("Please upload a profile photo.")
-            return full_name, None
-    return full_name, None
-
-username, profile_photo_path = sidebar_profile()
-
-# Profile Page
-if page == 'Profile':
+# Profile Update Page
+if page == 'Profile Update':
     display_header('Update Your Profile', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
 
+    if save_button:
+        st.markdown(f'<div class="success-message">Username "{username}" saved successfully!</div>', unsafe_allow_html=True)
+
     # Profile photo upload
-    uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'], key="profile_page_photo")
+    uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
     
     if uploaded_photo is not None:
-        photo_path = save_uploaded_file(uploaded_photo, username)
-        st.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG')
+        # Example user ID
+        user_id = username if username else 'example_user_id'
+        photo_path = save_uploaded_file(uploaded_photo, user_id)
+        st.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
         st.markdown('<div class="success-message">Profile photo uploaded successfully!</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -165,15 +151,10 @@ elif page == 'Job Recommendations':
 
             if 'description' in file_df.columns:
                 descriptions = file_df['description'].tolist()
-                recommendations = []
-                for desc in descriptions:
-                    desc_tfidf = vectorizer.transform([desc])
-                    similarity_scores = cosine_similarity(desc_tfidf, tfidf_matrix)
-                    top_indices = similarity_scores[0].argsort()[-5:][::-1]
-                    recommendations.append(df.iloc[top_indices][['title', 'company_name', 'location']])
+                recommendations = [recommend_jobs(desc) for desc in descriptions]
                 st.write('Recommended Jobs:')
                 for rec in recommendations:
-                    st.write(rec)
+                    st.write(rec[['title', 'company_name', 'location']])
             else:
                 st.markdown('<div class="error-message">The uploaded file must contain a "description" column.</div>', unsafe_allow_html=True)
 
@@ -220,13 +201,7 @@ elif page == 'Predict Candidate Interest':
 
     if uploaded_file is not None:
         candidate_df = pd.read_csv(uploaded_file)
-        required_columns = ['candidate_id', 'job_id', 'views', 'applies', 'average_salary']
-        if all(col in candidate_df.columns for col in required_columns):
-            candidate_df['predicted_interest'] = forest_model.predict(candidate_df[['views', 'applies', 'average_salary']])
-            st.write('Candidate Interest Predictions:')
-            st.write(candidate_df[['candidate_id', 'job_id', 'predicted_interest']])
-        else:
-            st.markdown(f'<div class="error-message">The uploaded file must contain columns: {", ".join(required_columns)}.</div>', unsafe_allow_html=True)
+        # Example candidate interest prediction logic here
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -234,10 +209,16 @@ elif page == 'Predict Candidate Interest':
 elif page == 'Feedback':
     display_header('Feedback', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Provide Your Feedback', anchor='subtitle')
+    st.subheader('Submit Your Feedback', anchor='subtitle')
 
-    feedback = st.text_area("Your feedback:")
+    feedback = st.text_area("Your Feedback:")
     if st.button('Submit Feedback'):
-        st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
+        if feedback:
+            st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="error-message">Please enter your feedback before submitting.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown('<footer style="background-color: #007bff; color: #ffffff; padding: 1rem; text-align: center; margin-top: 2rem;">Job Recommendation System © 2024</footer>', unsafe_allow_html=True)
