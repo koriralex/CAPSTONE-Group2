@@ -211,15 +211,28 @@ elif page == 'Predict Candidate Interest':
     st.markdown('<div class="container main">', unsafe_allow_html=True)
     st.subheader('Predict Candidate Interest', anchor='subtitle')
 
-    uploaded_file = st.file_uploader("Upload a file with candidate data (CSV):", type=['csv'])
+    # Inputs for predictor model
+    views = st.number_input('Views', min_value=0)
+    description_length = st.number_input('Description Length', min_value=0)
+    average_salary = st.number_input('Average Salary', min_value=0.0, format="%.2f")
+    formatted_experience_level = st.selectbox('Experience Level', ['Entry', 'Mid', 'Senior', 'Executive'])
+    days_since_listed = st.number_input('Days Since Listed', min_value=0)
+    work_type = st.selectbox('Work Type', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'])
 
-    if uploaded_file is not None:
-        candidate_df = pd.read_csv(uploaded_file)
-        st.write('Candidate Data:')
-        st.write(candidate_df.head())
-
-        # Placeholder for model prediction
-        st.markdown('<div class="success-message">Model prediction will be implemented here.</div>', unsafe_allow_html=True)
+    if st.button('Predict Interest'):
+        if forest_model:
+            input_data = pd.DataFrame({
+                'views': [views],
+                'description_length': [description_length],
+                'average_salary': [average_salary],
+                'formatted_experience_level': [formatted_experience_level],
+                'days_since_listed': [days_since_listed],
+                'work_type': [work_type]
+            })
+            prediction = forest_model.predict(input_data)
+            st.write(f'Predicted Interest: {"Interested" if prediction[0] == 1 else "Not Interested"}')
+        else:
+            st.markdown('<div class="error-message">Forest model is not loaded.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
