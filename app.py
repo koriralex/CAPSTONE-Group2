@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pickle
-from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
 import os
@@ -25,30 +24,31 @@ def save_uploaded_file(uploaded_file, user_id):
 # Load models with error handling
 @st.cache_resource
 def load_models():
+    models = {}
     try:
         with open('description.pkl', 'rb') as f:
-            description_model = pickle.load(f)
+            models['description_model'] = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading description model: {e}")
-        description_model = None
 
     try:
         with open('knn_model.pkl', 'rb') as f:
-            knn_model = pickle.load(f)
+            models['knn_model'] = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading KNN model: {e}")
-        knn_model = None
 
     try:
         with open('forest_model.pkl', 'rb') as f:
-            forest_model = pickle.load(f)
+            models['forest_model'] = pickle.load(f)
     except Exception as e:
         st.error(f"Error loading forest model: {e}")
-        forest_model = None
 
-    return description_model, knn_model, forest_model
+    return models
 
-description_model, knn_model, forest_model = load_models()
+models = load_models()
+description_model = models.get('description_model')
+knn_model = models.get('knn_model')
+forest_model = models.get('forest_model')
 
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')
@@ -79,7 +79,7 @@ except Exception as e:
     st.error(f"Error loading job IDs: {e}")
     job_ids = []
 
-# Add custom CSS for styling from an external GitHub file
+# Add custom CSS for styling
 st.markdown(
     """
     <style>
@@ -105,7 +105,7 @@ if uploaded_photo is not None:
     else:
         user_id = 'example_user_id'  # Replace with actual user ID if available
         photo_path = save_uploaded_file(uploaded_photo, user_id)
-        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
+        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True)
 
 # Username
 username = st.sidebar.text_input("Username")
@@ -167,7 +167,7 @@ elif page == 'Job Recommendations':
 
             if 'description' in file_df.columns:
                 descriptions = file_df['description'].tolist()
-                recommendations = [recommend_jobs(desc) for desc in descriptions]
+                recommendations = [recommend_jobs(desc) for desc in descriptions]  # Ensure recommend_jobs is defined
                 st.write('Recommended Jobs:')
                 for rec in recommendations:
                     st.write(rec[['title', 'company_name', 'location']])
