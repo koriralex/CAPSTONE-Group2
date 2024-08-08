@@ -50,11 +50,8 @@ def load_models():
 
 description_model, knn_model, forest_model = load_models()
 
-
-
-#file_id = '1mQaPVtJO3ylpRwrP5MZ9hmfuo19CIIyb'
-url = f'https://drive.google.com/uc?export=download&id={file_id}'
-df = pd.read_csv(url)
+# Load dataset for KNN recommendations
+df = pd.read_csv('postings.csv')
 
 # Load TF-IDF matrix and vectorizer
 try:
