@@ -98,11 +98,14 @@ def display_header(title, image_url):
 st.sidebar.header("User Profile")
 
 # Profile photo upload
-uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
+uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG, max 5MB):", type=['jpg', 'png'])
 if uploaded_photo is not None:
-    user_id = 'example_user_id'  # Replace with actual user ID if available
-    photo_path = save_uploaded_file(uploaded_photo, user_id)
-    st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
+    if uploaded_photo.size > 5 * 1024 * 1024:
+        st.sidebar.error("The file size should not exceed 5MB.")
+    else:
+        user_id = 'example_user_id'  # Replace with actual user ID if available
+        photo_path = save_uploaded_file(uploaded_photo, user_id)
+        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG', class_='uploaded-photo')
 
 # Username
 username = st.sidebar.text_input("Username")
@@ -117,10 +120,6 @@ def is_valid_email(email):
 email_valid = is_valid_email(email)
 if not email_valid and email:
     st.sidebar.markdown('<div class="error-message">Please enter a valid email address.</div>', unsafe_allow_html=True)
-
-# Toggle keys
-toggle_1 = st.sidebar.checkbox('Toggle Key 1')
-toggle_2 = st.sidebar.checkbox('Toggle Key 2')
 
 save_button = st.sidebar.button("Save")
 
