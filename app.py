@@ -65,14 +65,12 @@ try:
     title_df = pd.read_csv('title_list.csv')
     job_titles = title_df['title'].tolist()
 except Exception as e:
-    st.error(f"Error loading job titles: {e}")
     job_titles = []
 
 try:
     job_id_df = pd.read_csv('job_id_list.csv')
     job_ids = job_id_df['job_id'].tolist()
 except Exception as e:
-    st.error(f"Error loading job IDs: {e}")
     job_ids = []
 
 # Add custom CSS for styling from an external GitHub file
