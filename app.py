@@ -68,7 +68,7 @@ try:
     title_df = pd.read_csv('title_list.csv')
     job_titles = title_df['title'].tolist()
 except Exception as e:
-    st.error(f"Error loading job titles: {e}")
+        st.error(f"Error loading job titles: {e}")
     job_titles = []
 
 try:
@@ -88,33 +88,41 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Set up the Streamlit app layout
+# Function to display header
 def display_header(title, image_url):
     st.markdown(f'<h1 class="title">{title}</h1>', unsafe_allow_html=True)
     st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 100%; border-radius: 8px;">', unsafe_allow_html=True)
 
-# Sidebar for selecting page
-page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
-
-# Sidebar for user profile
-def sidebar_profile(user_id='example_user_id'):
-    st.sidebar.markdown(f"## User Profile")
-    uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'], key="profile_photo")
-    
-    if uploaded_photo is not None:
-        photo_path = save_uploaded_file(uploaded_photo, user_id)
-        st.sidebar.image(photo_path, caption='Profile Photo', use_column_width=True, output_format='JPEG')
-        st.sidebar.markdown(f"**Username:** {user_id}")
-        return photo_path
-    return None
-
-profile_photo_path = sidebar_profile()
-
 # Image URL for headers
 header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
 
-# Profile Update Page
-if page == 'Profile Update':
+# Sidebar for selecting page
+page = st.sidebar.radio('Select Page', ['Profile', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
+
+# Function to display profile in the sidebar
+def sidebar_profile():
+    st.sidebar.markdown("## User Profile")
+    first_name = st.sidebar.text_input("First Name:")
+    last_name = st.sidebar.text_input("Last Name:")
+    full_name = f"{first_name} {last_name}"
+
+    uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'], key="profile_photo")
+    
+    if st.sidebar.button("Save Profile"):
+        if uploaded_photo is not None:
+            photo_path = save_uploaded_file(uploaded_photo, full_name)
+            st.sidebar.image(photo_path, caption='Profile Photo', use_column_width=True, output_format='JPEG')
+            st.sidebar.markdown(f"**Name:** {full_name}")
+            return full_name, photo_path
+        else:
+            st.sidebar.markdown("Please upload a profile photo.")
+            return full_name, None
+    return full_name, None
+
+username, profile_photo_path = sidebar_profile()
+
+# Profile Page
+if page == 'Profile':
     display_header('Update Your Profile', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
 
@@ -122,8 +130,7 @@ if page == 'Profile Update':
     uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'], key="profile_page_photo")
     
     if uploaded_photo is not None:
-        user_id = 'example_user_id'
-        photo_path = save_uploaded_file(uploaded_photo, user_id)
+        photo_path = save_uploaded_file(uploaded_photo, username)
         st.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG')
         st.markdown('<div class="success-message">Profile photo uploaded successfully!</div>', unsafe_allow_html=True)
 
