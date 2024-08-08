@@ -1,6 +1,5 @@
-import streamlit as st
 import pandas as pd
-import joblib  # Replace pickle with joblib for loading models
+import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
@@ -22,26 +21,26 @@ def save_uploaded_file(uploaded_file, user_id):
         f.write(uploaded_file.read())
     return file_path
 
-# Load models using joblib
+# Load models with error handling
 @st.cache_resource
 def load_models():
     try:
-        description_model = joblib.load('description.pkl')
+        with open('description.pkl', 'rb') as f:
+            description_model = pickle.load(f)
     except Exception as e:
         description_model = None
-        st.error(f"Error loading description model: {e}")
 
     try:
-        knn_model = joblib.load('knn_model.pkl')
+        with open('knn_model.pkl', 'rb') as f:
+            knn_model = pickle.load(f)
     except Exception as e:
         knn_model = None
-        st.error(f"Error loading KNN model: {e}")
 
     try:
-        forest_model = joblib.load('forest_model.pkl')
+        with open('forest_model.pkl', 'rb') as f:
+            forest_model = pickle.load(f)
     except Exception as e:
         forest_model = None
-        st.error(f"Error loading Forest model: {e}")
 
     return description_model, knn_model, forest_model
 
@@ -50,14 +49,15 @@ description_model, knn_model, forest_model = load_models()
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')
 
-# Load TF-IDF matrix and vectorizer using joblib
+# Load TF-IDF matrix and vectorizer
 try:
-    tfidf_matrix = joblib.load('tfidf_matrix.pkl')
-    vectorizer = joblib.load('vectorizer.pkl')
+    with open('tfidf_matrix.pkl', 'rb') as file:
+        tfidf_matrix = pickle.load(file)
+    with open('vectorizer.pkl', 'rb') as file:
+        vectorizer = pickle.load(file)
 except Exception as e:
     tfidf_matrix = None
     vectorizer = None
-    st.error(f"Error loading TF-IDF matrix or vectorizer: {e}")
 
 # Load job titles and IDs for dropdowns
 try:
@@ -65,14 +65,13 @@ try:
     job_titles = title_df['title'].tolist()
 except Exception as e:
     job_titles = []
-    st.error(f"Error loading job titles: {e}")
 
 try:
     job_id_df = pd.read_csv('job_id_list.csv')
     job_ids = job_id_df['job_id'].tolist()
 except Exception as e:
     job_ids = []
-    st.error(f"Error loading job IDs: {e}")
+
 # Add custom CSS for styling from an external GitHub file
 st.markdown(
     """
@@ -185,23 +184,21 @@ elif page == 'Job Recommendations':
                     st.write('Recommended Jobs:')
                     st.write(similar_jobs[['title', 'company_name', 'location']])
                 else:
-                    st.markdown('<div class="error-message">Invalid job ID selected.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="error-message">Invalid Job ID selected.</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html=True)
 
     elif option == 'Recommend Jobs Based on Title Filter':
         st.subheader('Job Recommendations Based on Title Filter')
-        selected_job_title = st.selectbox('Select Job Title:', options=job_titles)
+        title_filter = st.selectbox('Select Job Title Filter:', options=job_titles)
         
         if st.button('Get Recommendations'):
-            if selected_job_title:
-                title_mask = df['title'].str.contains(selected_job_title, case=False)
-                filtered_df = df[title_mask]
-                if not filtered_df.empty:
-                    distances, indices = knn_model.kneighbors(filtered_df)
-                    similar_jobs = df.iloc[indices.flatten()]
-                    st.write('Recommended Jobs:')
-                    st.write(similar_jobs[['title', 'company_name', 'location']])
-                else:
-                    st.markdown('<div class="error-message">No jobs found with the selected title.</div>', unsafe_allow_html=True)
+            if title_filter:
+                filtered_jobs = df[df['title'].str.contains(title_filter, case=False, na=False)]
+                st.write('Filtered Jobs:')
+                st.write(filtered_jobs[['title', 'company_name', 'location']])
+            else:
+                st.markdown('<div class="error-message">Please select a job title filter.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -209,31 +206,30 @@ elif page == 'Job Recommendations':
 elif page == 'Predict Candidate Interest':
     display_header('Predict Candidate Interest', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    
-    st.subheader('Upload a Job Description to Predict Candidate Interest')
+    st.subheader('Predict Candidate Interest', anchor='subtitle')
 
-    uploaded_file = st.file_uploader("Upload a job description file (TXT or PDF):", type=['txt', 'pdf'])
-    
-    if uploaded_file is not None:
-        job_description = ''
-        if uploaded_file.type == 'text/plain':
-            job_description = uploaded_file.read().decode('utf-8')
-        elif uploaded_file.type == 'application/pdf':
-            reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
-            for page_num in range(len(reader.pages)):
-                page = reader.pages[page_num]
-                job_description += page.extract_text()
-        
-        if job_description:
-            description_tfidf = vectorizer.transform([job_description])
-            try:
-                prediction = forest_model.predict(description_tfidf)
-                if prediction[0] == 1:
-                    st.markdown('<div class="success-message">The job description is likely to attract high candidate interest!</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="error-message">The job description is less likely to attract high candidate interest.</div>', unsafe_allow_html=True)
-            except Exception as e:
-                st.markdown('<div class="error-message">The predictor model could not be loaded.</div>', unsafe_allow_html=True)
+    # Inputs for predictor model
+    views = st.number_input('Views', min_value=0)
+    description_length = st.number_input('Description Length', min_value=0)
+    average_salary = st.number_input('Average Salary', min_value=0.0, format="%.2f")
+    formatted_experience_level = st.selectbox('Experience Level', ['Entry', 'Mid', 'Senior', 'Executive'])
+    days_since_listed = st.number_input('Days Since Listed', min_value=0)
+    work_type = st.selectbox('Work Type', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'])
+
+    if st.button('Predict Interest'):
+        if forest_model:
+            input_data = pd.DataFrame({
+                'views': [views],
+                'description_length': [description_length],
+                'average_salary': [average_salary],
+                'formatted_experience_level': [formatted_experience_level],
+                'days_since_listed': [days_since_listed],
+                'work_type': [work_type]
+            })
+            prediction = forest_model.predict(input_data)
+            st.write(f'Predicted Interest: {"Interested" if prediction[0] == 1 else "Not Interested"}')
+        else:
+            st.markdown('<div class="error-message">Forest model is not loaded.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -241,24 +237,19 @@ elif page == 'Predict Candidate Interest':
 elif page == 'Feedback':
     display_header('Feedback', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Feedback', anchor='subtitle')
+    st.subheader('We Value Your Feedback', anchor='subtitle')
 
-    name = st.text_input('Name')
-    email = st.text_input('Email')
-    feedback = st.text_area('Feedback')
+    feedback = st.text_area("Enter your feedback here:")
 
-    if st.button('Submit'):
-        if name and email and feedback:
+    submit_button = st.button("Submit Feedback")
+
+    if submit_button:
+        if feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="error-message">Please fill in all fields before submitting.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-message">Please enter your feedback before submitting.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Function to recommend jobs based on a job description
-def recommend_jobs(job_description):
-    job_description_tfidf = vectorizer.transform([job_description])
-    similarities = cosine_similarity(job_description_tfidf, tfidf_matrix)
-    similar_indices = similarities.argsort().flatten()[-10:]
-    similar_jobs = df.iloc[similar_indices][::-1]  # Reverse to show most similar first
-    return similar_jobs
+# Footer
+st.markdown('<footer style="background-color: #007bff; color: #ffffff; padding: 1rem; text-align: center; margin-top: 2rem;">Job Recommendation System © 2024</footer>', unsafe_allow_html=True)
