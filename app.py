@@ -83,7 +83,8 @@ except Exception as e:
 st.markdown(
     """
     <style>
-    @import url('https://raw.githubusercontent.com/your-username/your-repository/main/styles.css');
+    
+    @import url('https://raw.githubusercontent.com/ge_saka/CAPSTONE-Group2/main/styles.css');
     </style>
     """,
     unsafe_allow_html=True
