@@ -7,6 +7,9 @@ import io
 import re
 import os
 
+# Set up the Streamlit app
+st.set_page_config(page_title="Job Recommendation System", page_icon="📈", layout="wide")
+
 # Define the path to save profile photos
 UPLOAD_DIR = 'profile_photos'
 if not os.path.exists(UPLOAD_DIR):
@@ -75,9 +78,6 @@ try:
 except Exception as e:
     st.error(f"Error loading job IDs: {e}")
     job_ids = []
-
-# Set up the Streamlit app
-st.set_page_config(page_title="Job Recommendation System", page_icon="📈", layout="wide")
 
 # Add custom CSS for styling
 st.markdown(
