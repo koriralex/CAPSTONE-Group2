@@ -53,6 +53,10 @@ description_model, knn_model, forest_model = load_models()
 # Load dataset for KNN recommendations
 df = pd.read_csv('postings.csv')
 
+#file_id = '1mQaPVtJO3ylpRwrP5MZ9hmfuo19CIIyb'
+url = f'https://drive.google.com/uc?export=download&id={file_id}'
+df = pd.read_csv(url)
+
 # Load TF-IDF matrix and vectorizer
 try:
     with open('tfidf_matrix.pkl', 'rb') as file:
