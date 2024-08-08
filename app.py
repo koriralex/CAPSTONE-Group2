@@ -4,7 +4,6 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import PyPDF2
 import io
-import re
 import os
 
 # Set up the Streamlit app
@@ -101,6 +100,9 @@ save_button = st.sidebar.button("Save")
 
 # Image URL
 header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
+
+# Page selection in the sidebar
+page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
 
 # Profile Update Page
 if page == 'Profile Update':
@@ -212,7 +214,9 @@ elif page == 'Feedback':
     st.subheader('Submit Your Feedback', anchor='subtitle')
 
     feedback = st.text_area("Your Feedback:")
-    if st.button('Submit Feedback'):
+    submit_button = st.button("Submit Feedback")
+
+    if submit_button:
         if feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
