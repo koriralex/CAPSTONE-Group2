@@ -83,38 +83,27 @@ except Exception as e:
 st.markdown(
     """
     <style>
-    
-    @import url('https://raw.githubusercontent.com/ge_saka/CAPSTONE-Group2/main/styles.css');
+    @import url('https://raw.githubusercontent.com/your-username/your-repository/main/styles.css');
     </style>
     """,
     unsafe_allow_html=True
 )
 
 # Set up the Streamlit app layout
-st.title('Job Recommendation System', anchor='title')
+def display_header(title, image_url):
+    st.markdown(f'<h1 class="title">{title}</h1>', unsafe_allow_html=True)
+    st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 100%; border-radius: 8px;">', unsafe_allow_html=True)
 
 # Sidebar for selecting page
 page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
 
-# Function for text preprocessing
-def preprocess_text(text):
-    text = text.lower()
-    text = re.sub(r'\W', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text
-
-# Function to recommend jobs based on description
-def recommend_jobs(input_description, top_n=10):
-    input_description_processed = preprocess_text(input_description)
-    input_vector = vectorizer.transform([input_description_processed])
-    similarities = cosine_similarity(input_vector, tfidf_matrix).flatten()
-    indices = similarities.argsort()[-top_n:][::-1]
-    return df.iloc[indices]
+# Image URL
+header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
 
 # Profile Update Page
 if page == 'Profile Update':
+    display_header('Update Your Profile', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Update Your Profile', anchor='subtitle')
 
     # Profile photo upload
     uploaded_photo = st.file_uploader("Upload a profile photo (JPG, PNG):", type=['jpg', 'png'])
@@ -130,8 +119,8 @@ if page == 'Profile Update':
 
 # Job Recommendations Page
 elif page == 'Job Recommendations':
+    display_header('Job Recommendations', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Job Recommendations', anchor='subtitle')
 
     option = st.selectbox('Select Recommendation Type', ['Recommend Jobs Based on Description', 'Recommend Jobs Based on Job ID', 'Recommend Jobs Based on Title Filter'])
 
@@ -199,6 +188,7 @@ elif page == 'Job Recommendations':
 
 # Predict Candidate Interest Page
 elif page == 'Predict Candidate Interest':
+    display_header('Predict Candidate Interest', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
     st.subheader('Predict Candidate Interest', anchor='subtitle')
 
@@ -206,24 +196,17 @@ elif page == 'Predict Candidate Interest':
 
     if uploaded_file is not None:
         candidate_df = pd.read_csv(uploaded_file)
-
-        # Ensure required columns are present
-        if {'job_id', 'processed_title', 'processed_description', 'processed_location', 'views', 'applies', 'processed_company_name', 'work_type', 'average_salary'}.issubset(candidate_df.columns):
-            # Implement your prediction logic here
-            st.write('Predicted Candidate Interest:')
-            # Example placeholder for predictions
-            st.write(candidate_df[['job_id', 'processed_title', 'processed_description']])
-        else:
-            st.markdown('<div class="error-message">The uploaded file must contain the required columns.</div>', unsafe_allow_html=True)
+        # Further processing code here
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Feedback Page
 elif page == 'Feedback':
+    display_header('Feedback', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
     st.subheader('Provide Your Feedback', anchor='subtitle')
 
-    feedback = st.text_area('Your Feedback:', height=150)
+    feedback = st.text_area("Your feedback:")
     if st.button('Submit Feedback'):
         if feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
