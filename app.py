@@ -29,21 +29,18 @@ def load_models():
         with open('description.pkl', 'rb') as f:
             description_model = pickle.load(f)
     except Exception as e:
-        st.error(f"Error loading description model: {e}")
         description_model = None
 
     try:
         with open('knn_model.pkl', 'rb') as f:
             knn_model = pickle.load(f)
     except Exception as e:
-        st.error(f"Error loading KNN model: {e}")
         knn_model = None
 
     try:
         with open('forest_model.pkl', 'rb') as f:
             forest_model = pickle.load(f)
     except Exception as e:
-        st.error(f"Error loading forest model: {e}")
         forest_model = None
 
     return description_model, knn_model, forest_model
@@ -60,7 +57,6 @@ try:
     with open('vectorizer.pkl', 'rb') as file:
         vectorizer = pickle.load(file)
 except Exception as e:
-    st.error(f"Error loading TF-IDF matrix or vectorizer: {e}")
     tfidf_matrix = None
     vectorizer = None
 
