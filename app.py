@@ -79,68 +79,11 @@ except Exception as e:
     st.error(f"Error loading job IDs: {e}")
     job_ids = []
 
-# Add custom CSS for styling
+# Add custom CSS for styling from an external GitHub file
 st.markdown(
     """
     <style>
-    body {
-        font-family: 'Arial', sans-serif;
-        background-color: #f0f2f6;
-        margin: 0;
-        padding: 0;
-    }
-    .container {
-        max-width: 1200px;
-        margin: auto;
-        padding: 2rem;
-    }
-    .title {
-        font-size: 2rem;
-        color: #333;
-        margin-bottom: 1rem;
-    }
-    .subtitle {
-        font-size: 1.5rem;
-        color: #666;
-        margin-bottom: 1rem;
-    }
-    .main {
-        background-color: #ffffff;
-        border-radius: 8px;
-        padding: 2rem;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-    .upload-button, .recommend-button {
-        background-color: #007bff;
-        color: #ffffff;
-        border: none;
-        border-radius: 4px;
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-        font-size: 1rem;
-        margin-top: 1rem;
-    }
-    .upload-button:hover, .recommend-button:hover {
-        background-color: #0056b3;
-    }
-    .uploaded-photo {
-        margin-top: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-    .success-message, .error-message {
-        font-size: 1rem;
-        margin-top: 1rem;
-    }
-    .success-message {
-        color: #28a745;
-    }
-    .error-message {
-        color: #dc3545;
-    }
-    .page-content {
-        margin-top: 2rem;
-    }
+    @import url('https://raw.githubusercontent.com/your-username/your-repository/main/styles.css');
     </style>
     """,
     unsafe_allow_html=True
@@ -229,12 +172,12 @@ elif page == 'Job Recommendations':
             if selected_job_id is not None:
                 job_id_index = job_ids.index(selected_job_id)
                 if 0 <= job_id_index < len(df):
-                    distances, indices = knn_model.kneighbors([df.iloc[job_id_index][['views', 'applies', 'average_salary']].values])
-                    recommendations = df.iloc[indices[0]]
+                    distances, indices = knn_model.kneighbors([tfidf_matrix[job_id_index]])
+                    similar_jobs = df.iloc[indices.flatten()]
                     st.write('Recommended Jobs:')
-                    st.write(recommendations[['title', 'company_name', 'location']])
+                    st.write(similar_jobs[['title', 'company_name', 'location']])
                 else:
-                    st.markdown('<div class="error-message">Invalid Job ID. Please select a valid ID.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="error-message">Invalid Job ID selected.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html=True)
 
