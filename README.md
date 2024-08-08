@@ -42,15 +42,16 @@ Conversely, employers struggle to understand what factors contribute to the attr
 ***Recruitment Agencies***: Agencies that assist job seekers and employers in the recruitment process.
 
 
-
 ## SUCCESS METRICS
-1.Application Rate: Measure the percentage of job postings that receive applications. An increase in this rate indicates that job postings are more appealing to job seekers.
+Application Rate: Percentage of job postings receiving applications.
 
-2.Qualified Application Rate: Track the percentage of applications that meet the job requirements. A higher rate signifies that job postings are attracting more suitable candidates.
+Qualified Application Rate: Percentage of applications meeting job requirements.
 
-3.Time to Fill: Measure the average time taken to fill a job position from the posting date to the hiring date. A reduction in this time suggests improved efficiency in attracting and hiring candidates.
+Precision: Measure the proportion of recommended jobs that are relevant to the job seeker's input skills.
 
-4.Click-Through Rate (CTR): Monitor the percentage of job seekers who click on job postings. An increase in CTR indicates that job postings are effectively capturing job seekers' interest.
+Recall: Measure the proportion of relevant jobs that are successfully recommended to the job seeker.
 
-5.Candidate Engagement: Track metrics such as the number of views, shares, and saves for job postings. Higher engagement levels reflect increased interest in the job postings.
+F1 Score: Balance precision and recall to provide a single metric that evaluates the model's performance.
+
+Accuracy 90%: Measure the overall correctness of the model in predicting application likelihood
 
