@@ -55,3 +55,60 @@ F1 Score: Balance precision and recall to provide a single metric that evaluates
 
 Accuracy 90%: Measure the overall correctness of the model in predicting application likelihood
 
+## Feature Importance
+Views: The high importance score suggests
+that this feature has a strong predictive
+power in the model.
+Description: The length or quality of the
+job description is the second most
+important feature.
+Days_since_listed: This feature might help
+in understanding the freshness of the job
+posting and its attractiveness over time.
+average_salary: The average salary offered
+by the job posting has some impact on the
+prediction.
+formatted_experience_level: Suggests
+that while the experience level is a factor, it
+may not a strong predictor of the number of
+applications.
+work_type: The type of work (e.g., full-time,
+part-time, remote) also has minimal
+importance in the model is a factor but
+does not significantly influence the
+prediction.
+
+## Conclusion
+Random Forest perfomed better based on Test accuracy and F1 Score
+
+## Recommender Models
+
+1.Job Recommendations Based on Description: Summary: The system recommends jobs
+based on similarity to the input job description. For instance, a description like "certified
+customer care agent" led to recommendations in related fields such as sales and insurance.
+2.Job Recommendations Based on Job ID (KNN Model) Using job features like views,
+applies, and average_salary, the KNN model provided recommendations based on the
+similarity of job attributes. The output showed similar jobs based on these features.
+3.Job Recommendations Based on Title Filter: Recommendations based on a keyword
+filter (e.g., "engineer") returned jobs with titles containing the keyword, like "full stack
+engineer" and "software engineer intern.“
+4.Job Recommendations Based on Average Distance (KNN Results): The KNN model
+returned jobs with very low average distances, indicating high similarity to the input job ID.
+The results were very similar in terms of job attributes.
+5.Job Recommendations Based on Input Job Title (General System): The system provided
+recommendations based on the job title input, returning jobs with similar titles. For
+example, inputting "nurse" resulted in various nursing-related job recommendations.
+
+## System Recommendations
+
+1. Boost Job Visibility: Encourage recruiters to
+increase job views through strategic promotion and
+SEO, ensuring postings reach a wider audience.
+2. Enhance Job Descriptions: Advise recruiters to
+craft detailed, compelling job descriptions to attract
+top talent.
+3. Promote Fresh Listings: Encourage recruiters to
+emphasize new job postings to capitalize on their
+initial attractiveness and draw immediate attention.
+
+
