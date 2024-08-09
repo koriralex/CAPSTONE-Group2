@@ -11,37 +11,68 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 
-# Helper functions to load and preprocess data
+# Load dataset and job IDs
 def load_data():
-    # Dummy function to simulate data loading
-    return pd.DataFrame()
+    try:
+        df = pd.read_csv('postings.csv')
+        imputer = SimpleImputer(strategy='median')
+        df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']] = imputer.fit_transform(
+            df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']]
+        )
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        st.stop()
 
 def load_job_ids():
-    # Dummy function to simulate loading job IDs
-    return ['Job_ID_1', 'Job_ID_2', 'Job_ID_3']
+    try:
+        job_id_df = pd.read_csv('job_id_list.csv')
+        return job_id_df['job_id'].tolist()
+    except Exception as e:
+        st.error(f"Error loading job IDs: {e}")
+        st.stop()
 
 def load_recommender_resources():
-    global vectorizer, tfidf_matrix, recommender_df
-    # Dummy function to simulate loading resources
-    vectorizer = None
-    tfidf_matrix = None
-    recommender_df = pd.DataFrame({
-        'processed_title': ['Data Scientist', 'Software Engineer', 'Data Analyst'],
-        'processed_company_name': ['Company A', 'Company B', 'Company C'],
-        'processed_location': ['New York', 'San Francisco', 'Boston'],
-        'views': [120, 150, 100]
-    })
+    global recommender_df, title_list_df, knn, X_features, vectorizer, tfidf_matrix
+    try:
+        recommender_df = pd.read_csv('recommender_df.csv')
+        title_list_df = pd.read_csv('title_list.csv')
+        
+        X_features = recommender_df[['views', 'applies', 'average_salary']].values
+        job_id_list_df = pd.read_csv('job_id_list.csv')
+        knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
+        
+        with open('tfidf_vectorizer.pkl', 'rb') as f:
+            vectorizer = pickle.load(f)
+        tfidf_matrix = vectorizer.transform(recommender_df['processed_description'])
+    except Exception as e:
+        st.error(f"Error loading resources: {e}")
+        st.stop()
 
 def preprocess_data(df):
-    # Dummy function to simulate data preprocessing
-    return df
+    df['average_salary'] = (df['max_salary'] + df['min_salary']) / 2
+    df = df.drop(columns=['max_salary', 'min_salary', 'description'])
+    
+    le_work_type = LabelEncoder()
+    le_experience_level = LabelEncoder()
+    
+    df['work_type'] = le_work_type.fit_transform(df['work_type'].astype(str))
+    df['formatted_experience_level'] = le_experience_level.fit_transform(df['formatted_experience_level'].astype(str))
+    
+    X = df[['views', 'average_salary', 'listed_time', 'work_type', 'formatted_experience_level']]
+    y = df['applies']
+    
+    return X, y, le_work_type, le_experience_level, df[['job_id']]
 
 def train_model(X_train, y_train):
-    # Dummy function to simulate model training
-    return RandomForestRegressor().fit(X_train, y_train)
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
 
 def preprocess_text(text):
-    # Dummy function to simulate text preprocessing
+    text = text.lower()
+    text = re.sub(r'\W', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
     return text
 
 def get_top_jobs(title_input, top_n):
@@ -57,8 +88,20 @@ def get_top_jobs(title_input, top_n):
         st.error(f"Error getting top jobs: {e}")
 
 def display_knn_recommendations(job_id):
-    # Dummy function to simulate KNN recommendations
-    st.write(f"KNN recommendations for {job_id}")
+    try:
+        job_index = recommender_df[recommender_df['job_id'] == job_id].index[0]
+        distances, indices = knn.kneighbors([X_features[job_index]])
+        average_distance = np.mean(distances)
+        
+        st.write(f"Average Distance to Nearest Neighbors: {average_distance:.2f}")
+        
+        recommendations = indices.flatten()
+        top_recommendations = recommender_df.iloc[recommendations]
+        
+        st.subheader("KNN Recommendations based on JOB ID:")
+        st.write(top_recommendations[['processed_title', 'processed_company_name', 'processed_location']])
+    except Exception as e:
+        st.error(f"Error displaying recommendations: {e}")
 
 def recommend_jobs(input_description, top_n=10):
     input_description_processed = preprocess_text(input_description)
@@ -69,55 +112,125 @@ def recommend_jobs(input_description, top_n=10):
 
 # Streamlit App
 def main():
-    st.sidebar.title("User Profile")
-    st.sidebar.write("Username: Jane Doe")
-    st.sidebar.write("Member Since: 2021")
-    st.sidebar.image("user_profile.png", width=100)  # Replace with the actual path to the profile image
+    st.title("MatchWise: Intelligent Job Matching and Application Trend Prediction")
 
-    # Sidebar navigation
-    page = st.sidebar.selectbox("Navigate", ["Home", "Job Application Prediction", "Top Jobs Recommendation", "KNN Recommendations"])
-    
-    # Next page button
-    next_pages = {
-        "Home": "Job Application Prediction",
-        "Job Application Prediction": "Top Jobs Recommendation",
-        "Top Jobs Recommendation": "KNN Recommendations",
-        "KNN Recommendations": "Home"
-    }
-    
-    if st.sidebar.button("Next Page"):
-        page = next_pages[page]
+    header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
+    st.image(header_image_url, use_column_width=True)
 
-    # Display the selected page
-    if page == "Home":
-        st.header("Welcome to MatchWise!")
-        st.image("image.png", caption="Welcome Image")  # Replace with the actual path to the image
-        st.write("This is the home page where you can get started.")
+    # Load data and resources
+    df = load_data()
+    load_recommender_resources()
 
-    elif page == "Job Application Prediction":
-        st.header("Predict Job Application Likelihood")
-        st.image("image.png", caption="Prediction Image")  # Replace with the actual path to the image
-        # Include the Job Application Prediction code here
+    # Sidebar for profile and navigation
+    st.sidebar.title("Profile and Navigation")
 
-    elif page == "Top Jobs Recommendation":
-        st.header("Top Jobs Recommendation")
-        st.image("image.png", caption="Top Jobs Image")  # Replace with the actual path to the image
-        load_recommender_resources()
-        title_input = st.text_input("Enter Job Title")
-        top_n = st.slider("Select Number of Top Jobs", min_value=1, max_value=10, value=5)
+    profile_picture = st.sidebar.file_uploader("Upload your profile photo", type=["jpg", "jpeg", "png"])
+    if profile_picture:
+        st.sidebar.image(profile_picture, use_column_width=True, caption="Profile Picture")
+
+    cv_file = st.sidebar.file_uploader("Upload your CV", type=["pdf", "doc", "docx"])
+    if cv_file:
+        st.sidebar.download_button(
+            label="Download CV",
+            data=cv_file,
+            file_name="CV_" + cv_file.name,
+            mime="application/octet-stream"
+        )
+
+    options = ["Predict Job Application Likelihood", "Title-Based Recommendations", "Similar Jobs", "Popular Jobs", "Feedback"]
+    selection = st.sidebar.radio("Go to", options)
+
+    if selection == "Predict Job Application Likelihood":
+        st.header("Job Application Prediction")
         
-        if st.button("Recommend Jobs"):
-            get_top_jobs(title_input, top_n)
-
-    elif page == "KNN Recommendations":
-        st.header("KNN Job Recommendations")
-        st.image("image.png", caption="KNN Recommendations Image")  # Replace with the actual path to the image
-        load_recommender_resources()
+        X, y, le_work_type, le_experience_level, job_ids = preprocess_data(df)
         job_id_list = load_job_ids()
-        selected_job_id = st.selectbox("Select Job ID for KNN Recommendations", options=job_id_list)
+        
+        X_train, X_test, y_train, y_test, job_id_train, job_id_test = train_test_split(X, y, job_ids, test_size=0.3, random_state=42)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
 
-        if st.button("Get KNN Recommendations"):
+        model = train_model(X_train_scaled, y_train)
+        y_pred = model.predict(X_test_scaled)
+        
+
+        selected_job_id = st.sidebar.selectbox("Select Job ID", options=job_id_list)
+
+        views = st.sidebar.slider("Views", min_value=0, max_value=10000, value=500)
+        max_salary = st.sidebar.slider("Maximum Salary", min_value=30000, max_value=200000, value=50000)
+        min_salary = st.sidebar.slider("Minimum Salary", min_value=30000, max_value=200000, value=30000)
+        listed_time = st.sidebar.slider("Listed Time (days)", min_value=0, max_value=365, value=30)
+        
+        work_type_options = df['work_type'].unique()
+        selected_work_type = st.sidebar.selectbox("Work Type", options=work_type_options)
+        
+        experience_level_options = df['formatted_experience_level'].unique()
+        selected_experience_level = st.sidebar.selectbox("Formatted Experience Level", options=experience_level_options)
+
+        average_salary = (max_salary + min_salary) / 2
+
+        user_input = pd.DataFrame({
+            'job_id': [selected_job_id],
+            'views': [views],
+            'average_salary': [average_salary],
+            'listed_time': [listed_time],
+            'work_type': [selected_work_type],
+            'formatted_experience_level': [selected_experience_level]
+        })
+
+        user_input['work_type'] = le_work_type.transform(user_input['work_type'].astype(str))
+        user_input['formatted_experience_level'] = le_experience_level.transform(user_input['formatted_experience_level'].astype(str))
+        user_input_scaled = scaler.transform(user_input.drop(columns=['job_id']))
+
+        if st.sidebar.button("Get Recommendation"):
+            predicted_applies = model.predict(user_input_scaled)[0]
+            st.subheader("Prediction")
+            st.write(f"Predicted Number of Applies: {predicted_applies:.2f}")
+            st.write(f"Job ID: {selected_job_id}")
+
+    elif selection == "Title-Based Recommendations":
+        st.header("Job Title-Based Recommendations")
+        title_options = title_list_df['title'].tolist()
+        selected_title = st.selectbox("Select a job title:", title_options)
+        top_n = st.number_input("Enter the number of top jobs to recommend:", min_value=1, value=10, step=1)
+        if st.button("Get Recommendations"):
+            if selected_title.strip():
+                get_top_jobs(selected_title, top_n)
+            else:
+                st.warning("Please select a job title.")
+
+    elif selection == "Similar Jobs":
+        st.header("Similar Jobs")
+        selected_job_id = st.selectbox("Select Job ID to get recommendations:", job_id_list)
+        if st.button("Get Recommendations"):
             display_knn_recommendations(selected_job_id)
+
+    elif selection == "Popular Jobs":
+        st.header("Popular Jobs")
+        input_desc = st.text_area("Enter job description to find recommendations:")
+        if st.button("Get Recommendations"):
+            if input_desc.strip():
+                recommended_jobs = recommend_jobs(input_desc)
+                if not recommended_jobs.empty:
+                    st.subheader("Recommended Jobs:")
+                    st.write(recommended_jobs[['processed_title', 'processed_company_name', 'processed_location']])
+                else:
+                    st.write("No recommendations found.")
+            else:
+                st.warning("Job description cannot be empty. Please enter a valid description.")
+
+    elif selection == "Feedback":
+        st.header("Feedback")
+        st.write("We value your feedback! Please let us know your thoughts and suggestions.")
+        feedback = st.text_area("Enter your feedback here:")
+        if st.button("Submit Feedback"):
+            if feedback.strip():
+                with open('feedback.txt', 'a') as f:
+                    f.write(feedback + '\n')
+                st.success("Thank you for your feedback!")
+            else:
+                st.warning("Feedback cannot be empty. Please enter your comments.")
 
 if __name__ == "__main__":
     main()
