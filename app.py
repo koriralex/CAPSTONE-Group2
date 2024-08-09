@@ -2,46 +2,25 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.impute import SimpleImputer
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 
-# Load dataset and job IDs
-def load_data():
+# Load necessary resources
+def load_resources():
+    global recommender_df, title_list_df, knn, X_features, job_ids, vectorizer, tfidf_matrix
     try:
-        df = pd.read_csv('postings.csv')
-        imputer = SimpleImputer(strategy='median')
-        df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']] = imputer.fit_transform(
-            df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']]
-        )
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        st.stop()
-
-def load_job_ids():
-    try:
-        job_id_df = pd.read_csv('job_id_list.csv')
-        return job_id_df['job_id'].tolist()
-    except Exception as e:
-        st.error(f"Error loading job IDs: {e}")
-        st.stop()
-
-def load_recommender_resources():
-    global recommender_df, title_list_df, knn, X_features, vectorizer, tfidf_matrix
-    try:
+        # Load recommender data
         recommender_df = pd.read_csv('recommender_df.csv')
         title_list_df = pd.read_csv('title_list.csv')
         
+        # Prepare KNN model
         X_features = recommender_df[['views', 'applies', 'average_salary']].values
         job_id_list_df = pd.read_csv('job_id_list.csv')
+        job_ids = job_id_list_df['job_id'].tolist()
         knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
         
+        # Load TF-IDF vectorizer
         with open('tfidf_vectorizer.pkl', 'rb') as f:
             vectorizer = pickle.load(f)
         tfidf_matrix = vectorizer.transform(recommender_df['processed_description'])
@@ -49,30 +28,10 @@ def load_recommender_resources():
         st.error(f"Error loading resources: {e}")
         st.stop()
 
-def preprocess_data(df):
-    df['average_salary'] = (df['max_salary'] + df['min_salary']) / 2
-    df = df.drop(columns=['max_salary', 'min_salary', 'description'])
-    
-    le_work_type = LabelEncoder()
-    le_experience_level = LabelEncoder()
-    
-    df['work_type'] = le_work_type.fit_transform(df['work_type'].astype(str))
-    df['formatted_experience_level'] = le_experience_level.fit_transform(df['formatted_experience_level'].astype(str))
-    
-    X = df[['views', 'average_salary', 'listed_time', 'work_type', 'formatted_experience_level']]
-    y = df['applies']
-    
-    return X, y, le_work_type, le_experience_level, df[['job_id']]
-
-def train_model(X_train, y_train):
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
-    return model
-
 def preprocess_text(text):
     text = text.lower()
-    text = re.sub(r'\W', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\W', ' ', text)  # Remove non-word characters
+    text = re.sub(r'\s+', ' ', text)  # Remove extra whitespace
     return text
 
 def get_top_jobs(title_input, top_n):
@@ -82,6 +41,10 @@ def get_top_jobs(title_input, top_n):
             recommendations = filtered_df.sort_values(by='views', ascending=False).head(top_n)
             st.subheader("Top Recommended Jobs:")
             st.write(recommendations[['processed_title', 'processed_company_name', 'processed_location', 'views']])
+            
+            with open('recommended_jobs.pkl', 'wb') as f:
+                pickle.dump(recommendations, f)
+            st.info("Recommendations saved to 'recommended_jobs.pkl'.")
         else:
             st.warning(f"No jobs found with the title containing '{title_input}'")
     except Exception as e:
@@ -114,20 +77,21 @@ def recommend_jobs(input_description, top_n=10):
 def main():
     st.title("MatchWise: Intelligent Job Matching and Application Trend Prediction")
 
+    # Header image URL
     header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
     st.image(header_image_url, use_column_width=True)
 
-    # Load data and resources
-    df = load_data()
-    load_recommender_resources()
+    load_resources()
 
     # Sidebar for profile and navigation
     st.sidebar.title("Profile and Navigation")
 
+    # Profile picture upload
     profile_picture = st.sidebar.file_uploader("Upload your profile photo", type=["jpg", "jpeg", "png"])
     if profile_picture:
         st.sidebar.image(profile_picture, use_column_width=True, caption="Profile Picture")
 
+    # CV upload
     cv_file = st.sidebar.file_uploader("Upload your CV", type=["pdf", "doc", "docx"])
     if cv_file:
         st.sidebar.download_button(
@@ -137,59 +101,11 @@ def main():
             mime="application/octet-stream"
         )
 
-    options = ["Predict Job Application Likelihood", "Title-Based Recommendations", "Similar Jobs", "Popular Jobs", "Feedback"]
+    # Navigation options
+    options = ["Title-Based Recommendations", "Similar Jobs", "Popular Jobs", "Feedback"]
     selection = st.sidebar.radio("Go to", options)
 
-    if selection == "Predict Job Application Likelihood":
-        st.header("Job Application Prediction")
-        
-        X, y, le_work_type, le_experience_level, job_ids = preprocess_data(df)
-        job_id_list = load_job_ids()
-        
-        X_train, X_test, y_train, y_test, job_id_train, job_id_test = train_test_split(X, y, job_ids, test_size=0.3, random_state=42)
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        model = train_model(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
-        
-
-        selected_job_id = st.sidebar.selectbox("Select Job ID", options=job_id_list)
-
-        views = st.sidebar.slider("Views", min_value=0, max_value=10000, value=500)
-        max_salary = st.sidebar.slider("Maximum Salary", min_value=30000, max_value=200000, value=50000)
-        min_salary = st.sidebar.slider("Minimum Salary", min_value=30000, max_value=200000, value=30000)
-        listed_time = st.sidebar.slider("Listed Time (days)", min_value=0, max_value=365, value=30)
-        
-        work_type_options = df['work_type'].unique()
-        selected_work_type = st.sidebar.selectbox("Work Type", options=work_type_options)
-        
-        experience_level_options = df['formatted_experience_level'].unique()
-        selected_experience_level = st.sidebar.selectbox("Formatted Experience Level", options=experience_level_options)
-
-        average_salary = (max_salary + min_salary) / 2
-
-        user_input = pd.DataFrame({
-            'job_id': [selected_job_id],
-            'views': [views],
-            'average_salary': [average_salary],
-            'listed_time': [listed_time],
-            'work_type': [selected_work_type],
-            'formatted_experience_level': [selected_experience_level]
-        })
-
-        user_input['work_type'] = le_work_type.transform(user_input['work_type'].astype(str))
-        user_input['formatted_experience_level'] = le_experience_level.transform(user_input['formatted_experience_level'].astype(str))
-        user_input_scaled = scaler.transform(user_input.drop(columns=['job_id']))
-
-        if st.sidebar.button("Get Recommendation"):
-            predicted_applies = model.predict(user_input_scaled)[0]
-            st.subheader("Prediction")
-            st.write(f"Predicted Number of Applies: {predicted_applies:.2f}")
-            st.write(f"Job ID: {selected_job_id}")
-
-    elif selection == "Title-Based Recommendations":
+    if selection == "Title-Based Recommendations":
         st.header("Job Title-Based Recommendations")
         title_options = title_list_df['title'].tolist()
         selected_title = st.selectbox("Select a job title:", title_options)
@@ -202,7 +118,7 @@ def main():
 
     elif selection == "Similar Jobs":
         st.header("Similar Jobs")
-        selected_job_id = st.selectbox("Select Job ID to get recommendations:", job_id_list)
+        selected_job_id = st.selectbox("Select Job ID to get recommendations:", job_ids)
         if st.button("Get Recommendations"):
             display_knn_recommendations(selected_job_id)
 
@@ -226,6 +142,7 @@ def main():
         feedback = st.text_area("Enter your feedback here:")
         if st.button("Submit Feedback"):
             if feedback.strip():
+                # Save feedback to a file
                 with open('feedback.txt', 'a') as f:
                     f.write(feedback + '\n')
                 st.success("Thank you for your feedback!")
