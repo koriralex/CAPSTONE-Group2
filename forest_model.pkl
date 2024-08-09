@@ -1,3 +1,0 @@
-# Save the model to a pickle file
-with open('forest_model.pkl', 'wb') as f:
-    pickle.dump(forest_model, f)
