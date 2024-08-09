@@ -1,3 +1,0 @@
-# Load the TF-IDF Matrix
-with open('tfidf_matrix.pkl', 'rb') as file:
-    loaded_tfidf_matrix = pickle.load(file)
