@@ -1,287 +1,236 @@
 import streamlit as st
 import pandas as pd
-import pickle
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.neighbors import NearestNeighbors
-from sklearn.ensemble import RandomForestClassifier
-import PyPDF2
-import io
-import os
-import re
 import numpy as np
+import pickle
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.impute import SimpleImputer
+from sklearn.neighbors import NearestNeighbors
+from sklearn.metrics.pairwise import cosine_similarity
+import re
 
-# Set up the Streamlit app
-st.set_page_config(page_title="MatchWise", page_icon="📈", layout="wide")
+# Load dataset and job IDs
+def load_data():
+    try:
+        df = pd.read_csv('postings.csv')
+        imputer = SimpleImputer(strategy='median')
+        df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']] = imputer.fit_transform(
+            df[['views', 'max_salary', 'min_salary', 'listed_time', 'applies']]
+        )
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        st.stop()
 
-# Define the path to save profile photos
-UPLOAD_DIR = 'profile_photos'
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
+def load_job_ids():
+    try:
+        job_id_df = pd.read_csv('job_id_list.csv')
+        return job_id_df['job_id'].tolist()
+    except Exception as e:
+        st.error(f"Error loading job IDs: {e}")
+        st.stop()
 
-# Function to save uploaded photo
-def save_uploaded_file(uploaded_file, user_id):
-    file_path = os.path.join(UPLOAD_DIR, f'{user_id}_{uploaded_file.name}')
-    with open(file_path, 'wb') as f:
-        f.write(uploaded_file.read())
-    return file_path
-
-# Load models with error handling
-@st.cache_resource
-def load_models():
-    models = {}
-    model_files = {
-        'recommended_jobs': 'recommended_jobs.pkl',
-        'knn_model': 'knn_model.pkl',
-        'random_forest_model': 'random_forest_model.pkl'
-    }
-    for key, filename in model_files.items():
-        try:
-            with open(filename, 'rb') as f:
-                models[key] = pickle.load(f)
-        except Exception as e:
-            models[key] = None
-            st.error(f"Error loading {filename}: {e}")
-    return models
-
-models = load_models()
-recommended_jobs, knn_model, forest_model = models['recommended_jobs'], models['knn_model'], models['random_forest_model']
-
-# Load dataset and TF-IDF matrix/vectorizer
-try:
-    with open('tfidf_vectorizer.pkl', 'rb') as file:
-        vectorizer = pickle.load(file)
-    recommender_df = pd.read_csv('recommender_df.csv')  # Load recommender_df
-    predictor_df = pd.read_csv('predictor_df.csv')  # Load predictor_df
-except Exception as e:
-    vectorizer, recommender_df, predictor_df = None, None, None
-    st.error(f"Error loading TF-IDF vectorizer, recommender_df, or predictor_df: {e}")
-
-# Load job titles and IDs for dropdowns
-job_titles, job_ids = [], []
-try:
-    title_df = pd.read_csv('title_list.csv')
-    job_titles = title_df['title'].tolist()
-except Exception as e:
-    st.error(f"Error loading job titles: {e}")
-
-try:
-    job_id_df = pd.read_csv('job_id_list.csv')
-    job_ids = job_id_df['job_id'].tolist()
-except Exception as e:
-    st.error(f"Error loading job IDs: {e}")
-
-# Path to postings CSV file
-file_path = r'C:\Users\Caro\Downloads\postings.csv'
-
-# Add custom CSS for styling from an external GitHub file
-st.markdown(
-    """
-    <style>
-    @import url('https://raw.githubusercontent.com/ge_saka/CAPSTONE-Group2/main/styles.css');
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Set up the Streamlit app layout
-def display_header(title, image_url):
-    st.markdown(f'<h1 class="title">{title}</h1>', unsafe_allow_html=True)
-    st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 80%; max-width: 1200px; border-radius: 8px; margin-bottom: 1rem;">', unsafe_allow_html=True)
-
-# Sidebar for selecting page and user input
-st.sidebar.header("MatchWise - User Profile")
-
-# Profile photo upload
-uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG, max 5MB):", type=['jpg', 'png'])
-if uploaded_photo is not None:
-    file_size = len(uploaded_photo.read())  # Read the entire file to get its size
-    uploaded_photo.seek(0)  # Reset file pointer to the beginning after reading
-
-    if file_size > 5 * 1024 * 1024:  # 5MB limit
-        st.sidebar.error("The file size should not exceed 5MB.")
-    else:
-        user_id = 'example_user_id'  # Replace with actual user ID if available
-        photo_path = save_uploaded_file(uploaded_photo, user_id)
-        st.sidebar.image(photo_path, caption='Uploaded Profile Photo', use_column_width=True, output_format='JPEG')
-
-# Username
-username = st.sidebar.text_input("Username")
-
-# Email
-email = st.sidebar.text_input("Email")
-
-# Email validation
-def is_valid_email(email):
-    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
-
-email_valid = is_valid_email(email)
-if not email_valid and email:
-    st.sidebar.markdown('<div class="error-message">Please enter a valid email address.</div>', unsafe_allow_html=True)
-
-save_button = st.sidebar.button("Save")
-
-# Image URL
-header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
-
-# Page selection in the sidebar
-page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendations', 'Predict Candidate Interest', 'Feedback'])
-
-# Profile Update Page
-if page == 'Profile Update':
-    display_header('Update Your Profile - MatchWise', header_image_url)
-    st.markdown('<div class="container main">', unsafe_allow_html=True)
-
-    if save_button:
-        st.markdown(f'<div class="success-message">Username "{username}" saved successfully!</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Job Recommendations Page
-elif page == 'Job Recommendations':
-    display_header('Job Recommendations - MatchWise', header_image_url)
-    st.markdown('<div class="container main">', unsafe_allow_html=True)
-
-    option = st.selectbox('Select Recommendation Type', ['Recommend Jobs Based on Description', 'Recommend Jobs Based on Job ID', 'Recommend Jobs Based on Title Filter'])
-
-    if option == 'Recommend Jobs Based on Description':
-        st.subheader('Job Recommendations Based on Description')
-
-        uploaded_file = st.file_uploader("Upload a file with job descriptions (CSV, TXT, or PDF):", type=['csv', 'txt', 'pdf'])
-
-        if uploaded_file is not None:
-            if uploaded_file.type == 'text/csv':
-                file_df = pd.read_csv(uploaded_file)
-            elif uploaded_file.type == 'text/plain':
-                file_content = uploaded_file.read().decode('utf-8')
-                file_df = pd.DataFrame({'description': file_content.split('\n')})
-            elif uploaded_file.type == 'application/pdf':
-                reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
-                file_content = ''.join([page.extract_text() for page in reader.pages])
-                file_df = pd.DataFrame({'description': file_content.split('\n')})
-
-            if 'description' in file_df.columns:
-                descriptions = file_df['description'].tolist()
-                recommendations = [recommended_jobs(desc) for desc in descriptions]
-                st.write('Recommended Jobs:')
-                for rec in recommendations:
-                    st.write(rec[['processed_title', 'processed_company_name', 'processed_location']])
-            else:
-                st.markdown('<div class="error-message">The uploaded file must contain a "description" column.</div>', unsafe_allow_html=True)
-
-    elif option == 'Recommend Jobs Based on Job ID':
-        st.subheader('Job Recommendations Based on Job ID')
-        selected_job_id = st.selectbox('Select Job ID:', options=job_ids)
+def load_recommender_resources():
+    global recommender_df, title_list_df, knn, X_features, vectorizer, tfidf_matrix
+    try:
+        recommender_df = pd.read_csv('recommender_df.csv')
+        title_list_df = pd.read_csv('title_list.csv')
         
-        if st.button('Get Recommendations'):
-            if selected_job_id is not None:
-                job_id_index = job_ids.index(selected_job_id)
-                
-                if recommender_df is not None:
-                    if 0 <= job_id_index < len(recommender_df):
-                        job_description = recommender_df.iloc[job_id_index]['processed_description']
-                        job_vector = vectorizer.transform([job_description])
-                        
-                        # Ensure KNN model is trained with the right features
-                        if knn_model:
-                            # Prepare feature matrix
-                            X_features = recommender_df[['views', 'applies', 'average_salary']].values
-
-                            # Apply KNN for job recommendations
-                            knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
-                            distances, indices = knn.kneighbors(X_features)
-
-                            # Calculate average distance of nearest neighbors
-                            average_distance = np.mean(distances)
-                            st.write(f"Average Distance to Nearest Neighbors: {average_distance:.2f}")
-
-                            # Display KNN recommendations
-                            if 0 <= job_id_index < len(recommender_df):
-                                recommendations = indices[job_id_index]
-                                top_recommendations = recommender_df.iloc[recommendations.flatten()]
-                                st.write('Recommended Jobs:')
-                                st.write(top_recommendations[['processed_title', 'processed_company_name', 'processed_location']])
-                            else:
-                                st.write(f"Job ID {job_id_index} is out of range.")
-                        else:
-                            st.markdown('<div class="error-message">KNN model is not available.</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown('<div class="error-message">Job ID index is out of range.</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="error-message">Recommender DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="error-message">Please select a valid Job ID.</div>', unsafe_allow_html=True)
-
-    elif option == 'Recommend Jobs Based on Title Filter':
-        st.subheader('Job Recommendations Based on Title Filter')
-        selected_title = st.selectbox('Select Job Title:', options=job_titles)
+        X_features = recommender_df[['views', 'applies', 'average_salary']].values
+        job_id_list_df = pd.read_csv('job_id_list.csv')
+        knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
         
-        if st.button('Get Recommendations'):
-            if selected_title:
-                if recommender_df is not None:
-                    filtered_jobs = recommender_df[recommender_df['processed_title'] == selected_title]
+        with open('tfidf_vectorizer.pkl', 'rb') as f:
+            vectorizer = pickle.load(f)
+        tfidf_matrix = vectorizer.transform(recommender_df['processed_description'])
+    except Exception as e:
+        st.error(f"Error loading resources: {e}")
+        st.stop()
 
-                    # Exclude problematic columns
-                    required_columns = ['job_id', 'processed_title', 'processed_company_name', 'processed_location', 'average_salary']
-                    filtered_jobs = filtered_jobs[required_columns]
-                    
-                    st.write('Recommended Jobs:')
-                    st.write(filtered_jobs)
+def preprocess_data(df):
+    df['average_salary'] = (df['max_salary'] + df['min_salary']) / 2
+    df = df.drop(columns=['max_salary', 'min_salary', 'description'])
+    
+    le_work_type = LabelEncoder()
+    le_experience_level = LabelEncoder()
+    
+    df['work_type'] = le_work_type.fit_transform(df['work_type'].astype(str))
+    df['formatted_experience_level'] = le_experience_level.fit_transform(df['formatted_experience_level'].astype(str))
+    
+    X = df[['views', 'average_salary', 'listed_time', 'work_type', 'formatted_experience_level']]
+    y = df['applies']
+    
+    return X, y, le_work_type, le_experience_level, df[['job_id']]
+
+def train_model(X_train, y_train):
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
+
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\W', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text
+
+def get_top_jobs(title_input, top_n):
+    try:
+        filtered_df = recommender_df[recommender_df['processed_title'].str.contains(title_input, case=False, na=False)]
+        if not filtered_df.empty:
+            recommendations = filtered_df.sort_values(by='views', ascending=False).head(top_n)
+            st.subheader("Top Recommended Jobs:")
+            st.write(recommendations[['processed_title', 'processed_company_name', 'processed_location', 'views']])
+        else:
+            st.warning(f"No jobs found with the title containing '{title_input}'")
+    except Exception as e:
+        st.error(f"Error getting top jobs: {e}")
+
+def display_knn_recommendations(job_id):
+    try:
+        job_index = recommender_df[recommender_df['job_id'] == job_id].index[0]
+        distances, indices = knn.kneighbors([X_features[job_index]])
+        average_distance = np.mean(distances)
+        
+        st.write(f"Average Distance to Nearest Neighbors: {average_distance:.2f}")
+        
+        recommendations = indices.flatten()
+        top_recommendations = recommender_df.iloc[recommendations]
+        
+        st.subheader("KNN Recommendations based on JOB ID:")
+        st.write(top_recommendations[['processed_title', 'processed_company_name', 'processed_location']])
+    except Exception as e:
+        st.error(f"Error displaying recommendations: {e}")
+
+def recommend_jobs(input_description, top_n=10):
+    input_description_processed = preprocess_text(input_description)
+    input_vector = vectorizer.transform([input_description_processed])
+    similarities = cosine_similarity(input_vector, tfidf_matrix).flatten()
+    indices = similarities.argsort()[-top_n:][::-1]
+    return recommender_df.iloc[indices]
+
+# Streamlit App
+def main():
+    st.title("MatchWise: Intelligent Job Matching and Application Trend Prediction")
+
+    header_image_url = "https://github.com/user-attachments/assets/e4b4502f-f99e-4dce-ad20-122843029701"
+    st.image(header_image_url, use_column_width=True)
+
+    # Load data and resources
+    df = load_data()
+    load_recommender_resources()
+
+    # Sidebar for profile and navigation
+    st.sidebar.title("Profile and Navigation")
+
+    profile_picture = st.sidebar.file_uploader("Upload your profile photo", type=["jpg", "jpeg", "png"])
+    if profile_picture:
+        st.sidebar.image(profile_picture, use_column_width=True, caption="Profile Picture")
+
+    cv_file = st.sidebar.file_uploader("Upload your CV", type=["pdf", "doc", "docx"])
+    if cv_file:
+        st.sidebar.download_button(
+            label="Download CV",
+            data=cv_file,
+            file_name="CV_" + cv_file.name,
+            mime="application/octet-stream"
+        )
+
+    options = ["Predict Job Application Likelihood", "Title-Based Recommendations", "Similar Jobs", "Popular Jobs", "Feedback"]
+    selection = st.sidebar.radio("Go to", options)
+
+    if selection == "Predict Job Application Likelihood":
+        st.header("Job Application Prediction")
+        
+        X, y, le_work_type, le_experience_level, job_ids = preprocess_data(df)
+        job_id_list = load_job_ids()
+        
+        X_train, X_test, y_train, y_test, job_id_train, job_id_test = train_test_split(X, y, job_ids, test_size=0.3, random_state=42)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        model = train_model(X_train_scaled, y_train)
+        y_pred = model.predict(X_test_scaled)
+        
+
+        selected_job_id = st.sidebar.selectbox("Select Job ID", options=job_id_list)
+
+        views = st.sidebar.slider("Views", min_value=0, max_value=10000, value=500)
+        max_salary = st.sidebar.slider("Maximum Salary", min_value=30000, max_value=200000, value=50000)
+        min_salary = st.sidebar.slider("Minimum Salary", min_value=30000, max_value=200000, value=30000)
+        listed_time = st.sidebar.slider("Listed Time (days)", min_value=0, max_value=365, value=30)
+        
+        work_type_options = df['work_type'].unique()
+        selected_work_type = st.sidebar.selectbox("Work Type", options=work_type_options)
+        
+        experience_level_options = df['formatted_experience_level'].unique()
+        selected_experience_level = st.sidebar.selectbox("Formatted Experience Level", options=experience_level_options)
+
+        average_salary = (max_salary + min_salary) / 2
+
+        user_input = pd.DataFrame({
+            'job_id': [selected_job_id],
+            'views': [views],
+            'average_salary': [average_salary],
+            'listed_time': [listed_time],
+            'work_type': [selected_work_type],
+            'formatted_experience_level': [selected_experience_level]
+        })
+
+        user_input['work_type'] = le_work_type.transform(user_input['work_type'].astype(str))
+        user_input['formatted_experience_level'] = le_experience_level.transform(user_input['formatted_experience_level'].astype(str))
+        user_input_scaled = scaler.transform(user_input.drop(columns=['job_id']))
+
+        if st.sidebar.button("Get Recommendation"):
+            predicted_applies = model.predict(user_input_scaled)[0]
+            st.subheader("Prediction")
+            st.write(f"Predicted Number of Applies: {predicted_applies:.2f}")
+            st.write(f"Job ID: {selected_job_id}")
+
+    elif selection == "Title-Based Recommendations":
+        st.header("Job Title-Based Recommendations")
+        title_options = title_list_df['title'].tolist()
+        selected_title = st.selectbox("Select a job title:", title_options)
+        top_n = st.number_input("Enter the number of top jobs to recommend:", min_value=1, value=10, step=1)
+        if st.button("Get Recommendations"):
+            if selected_title.strip():
+                get_top_jobs(selected_title, top_n)
+            else:
+                st.warning("Please select a job title.")
+
+    elif selection == "Similar Jobs":
+        st.header("Similar Jobs")
+        selected_job_id = st.selectbox("Select Job ID to get recommendations:", job_id_list)
+        if st.button("Get Recommendations"):
+            display_knn_recommendations(selected_job_id)
+
+    elif selection == "Popular Jobs":
+        st.header("Popular Jobs")
+        input_desc = st.text_area("Enter job description to find recommendations:")
+        if st.button("Get Recommendations"):
+            if input_desc.strip():
+                recommended_jobs = recommend_jobs(input_desc)
+                if not recommended_jobs.empty:
+                    st.subheader("Recommended Jobs:")
+                    st.write(recommended_jobs[['processed_title', 'processed_company_name', 'processed_location']])
                 else:
-                    st.markdown('<div class="error-message">Recommender DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
+                    st.write("No recommendations found.")
             else:
-                st.markdown('<div class="error-message">Please select a valid Job Title.</div>', unsafe_allow_html=True)
+                st.warning("Job description cannot be empty. Please enter a valid description.")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Predict Candidate Interest Page
-elif page == 'Predict Candidate Interest':
-    display_header('Predict Candidate Interest - MatchWise', header_image_url)
-    st.markdown('<div class="container main">', unsafe_allow_html=True)
-
-    min_salary = st.number_input('Minimum Salary', value=0)
-    max_salary = st.number_input('Maximum Salary', value=1000000)
-    work_type = st.selectbox('Work Type', options=['Full-time', 'Part-time', 'Contract', 'Internship'])
-
-    if st.button('Predict'):
-        if predictor_df is not None:
-            # Filter the predictor_df based on input values
-            filtered_jobs = predictor_df[(predictor_df['average_salary'] >= min_salary) &
-                                         (predictor_df['average_salary'] <= max_salary) &
-                                         (predictor_df['work_type'] == work_type)]
-            
-            # Exclude problematic columns
-            required_columns = ['job_id', 'average_salary']
-            filtered_jobs = filtered_jobs[required_columns]
-            
-            # Predict candidate interest
-            if forest_model:
-                X = filtered_jobs[['average_salary']].values
-                predictions = forest_model.predict(X)
-                filtered_jobs['predicted_interest'] = predictions
-
-                st.write('Predicted Candidate Interest:')
-                st.write(filtered_jobs[['job_id', 'average_salary', 'predicted_interest']])
+    elif selection == "Feedback":
+        st.header("Feedback")
+        st.write("We value your feedback! Please let us know your thoughts and suggestions.")
+        feedback = st.text_area("Enter your feedback here:")
+        if st.button("Submit Feedback"):
+            if feedback.strip():
+                with open('feedback.txt', 'a') as f:
+                    f.write(feedback + '\n')
+                st.success("Thank you for your feedback!")
             else:
-                st.markdown('<div class="error-message">Random Forest model is not available.</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="error-message">Predictor DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
+                st.warning("Feedback cannot be empty. Please enter your comments.")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Feedback Page
-elif page == 'Feedback':
-    display_header('Feedback - MatchWise', header_image_url)
-    st.markdown('<div class="container main">', unsafe_allow_html=True)
-
-    feedback = st.text_area('Your Feedback')
-
-    if st.button('Submit Feedback'):
-        if feedback:
-            st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="error-message">Please provide feedback before submitting.</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Additional Features
-st.markdown('<div class="footer">Developed by [Your Name]</div>', unsafe_allow_html=True)
+if __name__ == "__main__":
+    main()
