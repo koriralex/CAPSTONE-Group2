@@ -2,13 +2,16 @@ import streamlit as st
 import pandas as pd
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.neighbors import NearestNeighbors
+from sklearn.ensemble import RandomForestClassifier
 import PyPDF2
 import io
 import os
 import re
+import numpy as np
 
 # Set up the Streamlit app
-st.set_page_config(page_title="Job Recommendation System", page_icon="📈", layout="wide")
+st.set_page_config(page_title="MatchWise", page_icon="📈", layout="wide")
 
 # Define the path to save profile photos
 UPLOAD_DIR = 'profile_photos'
@@ -25,59 +28,56 @@ def save_uploaded_file(uploaded_file, user_id):
 # Load models with error handling
 @st.cache_resource
 def load_models():
-    try:
-        with open('description.pkl', 'rb') as f:
-            description_model = pickle.load(f)
-    except Exception as e:
-        description_model = None
+    models = {}
+    model_files = {
+        'recommended_jobs': 'recommended_jobs.pkl',
+        'knn_model': 'knn_model.pkl',
+        'random_forest_model': 'random_forest_model.pkl'
+    }
+    for key, filename in model_files.items():
+        try:
+            with open(filename, 'rb') as f:
+                models[key] = pickle.load(f)
+        except Exception as e:
+            models[key] = None
+            st.error(f"Error loading {filename}: {e}")
+    return models
 
-    try:
-        with open('knn_model.pkl', 'rb') as f:
-            knn_model = pickle.load(f)
-    except Exception as e:
-        knn_model = None
+models = load_models()
+recommended_jobs, knn_model, forest_model = models['recommended_jobs'], models['knn_model'], models['random_forest_model']
 
-    try:
-        with open('forest_model.pkl', 'rb') as f:
-            forest_model = pickle.load(f)
-    except Exception as e:
-        forest_model = None
-
-    return description_model, knn_model, forest_model
-
-description_model, knn_model, forest_model = load_models()
-
-# Load dataset for KNN recommendations
-df = pd.read_csv('postings.csv')
-
-# Load TF-IDF matrix and vectorizer
+# Load dataset and TF-IDF matrix/vectorizer
 try:
-    with open('tfidf_matrix.pkl', 'rb') as file:
-        tfidf_matrix = pickle.load(file)
-    with open('vectorizer.pkl', 'rb') as file:
+    with open('tfidf_vectorizer.pkl', 'rb') as file:
         vectorizer = pickle.load(file)
+    recommender_df = pd.read_csv('recommender_df.csv')  # Load recommender_df
+    predictor_df = pd.read_csv('predictor_df.csv')  # Load predictor_df
 except Exception as e:
-    tfidf_matrix = None
-    vectorizer = None
+    vectorizer, recommender_df, predictor_df = None, None, None
+    st.error(f"Error loading TF-IDF vectorizer, recommender_df, or predictor_df: {e}")
 
 # Load job titles and IDs for dropdowns
+job_titles, job_ids = [], []
 try:
     title_df = pd.read_csv('title_list.csv')
     job_titles = title_df['title'].tolist()
 except Exception as e:
-    job_titles = []
+    st.error(f"Error loading job titles: {e}")
 
 try:
     job_id_df = pd.read_csv('job_id_list.csv')
     job_ids = job_id_df['job_id'].tolist()
 except Exception as e:
-    job_ids = []
+    st.error(f"Error loading job IDs: {e}")
+
+# Path to postings CSV file
+file_path = r'C:\Users\Caro\Downloads\postings.csv'
 
 # Add custom CSS for styling from an external GitHub file
 st.markdown(
     """
     <style>
-    @import url('https://raw.githubusercontent.com/your-username/your-repository/main/styles.css');
+    @import url('https://raw.githubusercontent.com/ge_saka/CAPSTONE-Group2/main/styles.css');
     </style>
     """,
     unsafe_allow_html=True
@@ -89,12 +89,11 @@ def display_header(title, image_url):
     st.markdown(f'<img src="{image_url}" alt="Header Image" style="width: 80%; max-width: 1200px; border-radius: 8px; margin-bottom: 1rem;">', unsafe_allow_html=True)
 
 # Sidebar for selecting page and user input
-st.sidebar.header("User Profile")
+st.sidebar.header("MatchWise - User Profile")
 
 # Profile photo upload
 uploaded_photo = st.sidebar.file_uploader("Upload a profile photo (JPG, PNG, max 5MB):", type=['jpg', 'png'])
 if uploaded_photo is not None:
-    # Check file size
     file_size = len(uploaded_photo.read())  # Read the entire file to get its size
     uploaded_photo.seek(0)  # Reset file pointer to the beginning after reading
 
@@ -129,7 +128,7 @@ page = st.sidebar.selectbox('Select Page', ['Profile Update', 'Job Recommendatio
 
 # Profile Update Page
 if page == 'Profile Update':
-    display_header('Update Your Profile', header_image_url)
+    display_header('Update Your Profile - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
 
     if save_button:
@@ -139,7 +138,7 @@ if page == 'Profile Update':
 
 # Job Recommendations Page
 elif page == 'Job Recommendations':
-    display_header('Job Recommendations', header_image_url)
+    display_header('Job Recommendations - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
 
     option = st.selectbox('Select Recommendation Type', ['Recommend Jobs Based on Description', 'Recommend Jobs Based on Job ID', 'Recommend Jobs Based on Title Filter'])
@@ -157,18 +156,15 @@ elif page == 'Job Recommendations':
                 file_df = pd.DataFrame({'description': file_content.split('\n')})
             elif uploaded_file.type == 'application/pdf':
                 reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
-                file_content = ''
-                for page_num in range(len(reader.pages)):
-                    page = reader.pages[page_num]
-                    file_content += page.extract_text()
+                file_content = ''.join([page.extract_text() for page in reader.pages])
                 file_df = pd.DataFrame({'description': file_content.split('\n')})
 
             if 'description' in file_df.columns:
                 descriptions = file_df['description'].tolist()
-                recommendations = [recommend_jobs(desc) for desc in descriptions]
+                recommendations = [recommended_jobs(desc) for desc in descriptions]
                 st.write('Recommended Jobs:')
                 for rec in recommendations:
-                    st.write(rec[['title', 'company_name', 'location']])
+                    st.write(rec[['processed_title', 'processed_company_name', 'processed_location']])
             else:
                 st.markdown('<div class="error-message">The uploaded file must contain a "description" column.</div>', unsafe_allow_html=True)
 
@@ -179,78 +175,128 @@ elif page == 'Job Recommendations':
         if st.button('Get Recommendations'):
             if selected_job_id is not None:
                 job_id_index = job_ids.index(selected_job_id)
-                if 0 <= job_id_index < len(df):
-                    distances, indices = knn_model.kneighbors([tfidf_matrix[job_id_index]])
-                    similar_jobs = df.iloc[indices.flatten()]
-                    st.write('Recommended Jobs:')
-                    st.write(similar_jobs[['title', 'company_name', 'location']])
+                
+                if recommender_df is not None:
+                    if 0 <= job_id_index < len(recommender_df):
+                        job_description = recommender_df.iloc[job_id_index]['processed_description']
+                        job_vector = vectorizer.transform([job_description])
+                        
+                        # Ensure KNN model is trained with the right features
+                        if knn_model:
+                            # Prepare feature matrix
+                            X_features = recommender_df[['views', 'applies', 'average_salary']].values
+
+                            # Apply KNN for job recommendations
+                            knn = NearestNeighbors(n_neighbors=2, algorithm='auto').fit(X_features)
+                            distances, indices = knn.kneighbors(X_features)
+
+                            # Calculate average distance of nearest neighbors
+                            average_distance = np.mean(distances)
+                            st.write(f"Average Distance to Nearest Neighbors: {average_distance:.2f}")
+
+                            # Display KNN recommendations
+                            if 0 <= job_id_index < len(recommender_df):
+                                recommendations = indices[job_id_index]
+                                top_recommendations = recommender_df.iloc[recommendations.flatten()]
+                                st.write('Recommended Jobs:')
+                                st.write(top_recommendations[['processed_title', 'processed_company_name', 'processed_location']])
+                            else:
+                                st.write(f"Job ID {job_id_index} is out of range.")
+                        else:
+                            st.markdown('<div class="error-message">KNN model is not available.</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="error-message">Job ID index is out of range.</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown('<div class="error-message">Invalid Job ID selected.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="error-message">Recommender DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="error-message">Please select a job ID.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="error-message">Please select a Job ID.</div>', unsafe_allow_html=True)
 
     elif option == 'Recommend Jobs Based on Title Filter':
         st.subheader('Job Recommendations Based on Title Filter')
         title_filter = st.selectbox('Select Job Title Filter:', options=job_titles)
-        
+
         if st.button('Get Recommendations'):
-            if title_filter:
-                filtered_jobs = df[df['title'].str.contains(title_filter, case=False, na=False)]
-                st.write('Filtered Jobs:')
-                st.write(filtered_jobs[['title', 'company_name', 'location']])
+            filtered_jobs = recommender_df[recommender_df['processed_title'].str.contains(title_filter, case=False, na=False)]
+            if not filtered_jobs.empty:
+                st.write(filtered_jobs[['processed_title', 'processed_company_name', 'processed_location']])
             else:
-                st.markdown('<div class="error-message">Please select a job title filter.</div>', unsafe_allow_html=True)
+                st.write("No jobs found matching the title filter.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Predict Candidate Interest Page
 elif page == 'Predict Candidate Interest':
-    display_header('Predict Candidate Interest', header_image_url)
+    display_header('Predict Candidate Interest - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Predict Candidate Interest', anchor='subtitle')
 
-    # Inputs for predictor model
-    views = st.number_input('Views', min_value=0)
-    description_length = st.number_input('Description Length', min_value=0)
-    average_salary = st.number_input('Average Salary', min_value=0.0, format="%.2f")
-    formatted_experience_level = st.selectbox('Experience Level', ['Entry', 'Mid', 'Senior', 'Executive'])
-    days_since_listed = st.number_input('Days Since Listed', min_value=0)
-    work_type = st.selectbox('Work Type', ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'])
+    if forest_model:
+        # User inputs for prediction
+        views = st.number_input('Number of Views', min_value=0, value=0)
+        description_length = st.number_input('Description Length', min_value=0, value=0)
+        average_salary = st.number_input('Average Salary', min_value=0, value=0)
+        experience_level = st.selectbox('Experience Level', options=['Entry Level', 'Mid Level', 'Senior Level'])
+        days_since_listed = st.number_input('Days Since Listed', min_value=0, value=0)
+        work_type = st.selectbox('Work Type', options=['Full-time', 'Part-time', 'Contract', 'Internship'])
 
-    if st.button('Predict Interest'):
-        if forest_model:
-            input_data = pd.DataFrame({
-                'views': [views],
-                'description_length': [description_length],
-                'average_salary': [average_salary],
-                'formatted_experience_level': [formatted_experience_level],
-                'days_since_listed': [days_since_listed],
-                'work_type': [work_type]
-            })
-            prediction = forest_model.predict(input_data)
-            st.write(f'Predicted Interest: {"Interested" if prediction[0] == 1 else "Not Interested"}')
+        # Map experience level to numerical value
+        experience_mapping = {'Entry Level': 1, 'Mid Level': 2, 'Senior Level': 3}
+        experience_value = experience_mapping.get(experience_level, 0)
+
+        # Map work type to numerical value
+        work_type_mapping = {'Full-time': 1, 'Part-time': 2, 'Contract': 3, 'Internship': 4}
+        work_type_value = work_type_mapping.get(work_type, 0)
+
+        # Create input features DataFrame
+        input_features = pd.DataFrame({
+            'views': [views],
+            'description_length': [description_length],
+            'average_salary': [average_salary],
+            'formatted_experience_level': [experience_value],
+            'days_since_listed': [days_since_listed],
+            'work_type': [work_type_value]
+        })
+
+        # Predict interest
+        prediction_prob = forest_model.predict_proba(input_features)[0][1]  # Probability of class 1
+        threshold = 0.5  # Set your threshold here
+
+        if prediction_prob > threshold:
+            prediction = 'High'
         else:
-            st.markdown('<div class="error-message">Forest model is not loaded.</div>', unsafe_allow_html=True)
+            prediction = 'Low'
+
+        st.write(f"Prediction Probability: {prediction_prob:.2f}")
+        st.write(f"Predicted Interest Level: {prediction}")
+
+        # Display filtered job postings based on prediction
+        if prediction == 'High':
+            filtered_jobs = predictor_df[predictor_df['average_salary'] >= average_salary]
+        else:
+            filtered_jobs = predictor_df[predictor_df['average_salary'] < average_salary]
+
+        if not filtered_jobs.empty:
+            st.write('Filtered Job Postings:')
+            st.write(filtered_jobs[['job_id', 'description', 'average_salary']])
+        else:
+            st.write("No job postings match the criteria.")
+
+    else:
+        st.markdown('<div class="error-message">Random Forest model is not available.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Feedback Page
 elif page == 'Feedback':
-    display_header('Feedback', header_image_url)
+    display_header('Feedback - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('We Value Your Feedback', anchor='subtitle')
+    st.subheader('Provide Your Feedback')
+    feedback = st.text_area('Share your feedback or suggestions here:')
+    submit_feedback = st.button('Submit Feedback')
 
-    feedback = st.text_area("Enter your feedback here:")
-
-    submit_button = st.button("Submit Feedback")
-
-    if submit_button:
+    if submit_feedback:
         if feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="error-message">Please enter your feedback before submitting.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-message">Please provide feedback before submitting.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-# Footer
-st.markdown('<footer style="background-color: #007bff; color: #ffffff; padding: 1rem; text-align: center; margin-top: 2rem;">Job Recommendation System © 2024</footer>', unsafe_allow_html=True)
