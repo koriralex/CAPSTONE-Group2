@@ -154,19 +154,17 @@ def main():
         model = train_model(X_train_scaled, y_train)
         y_pred = model.predict(X_test_scaled)
         
-
-        selected_job_id = st.sidebar.selectbox("Select Job ID", options=job_id_list)
-
-        views = st.sidebar.slider("Views", min_value=0, max_value=10000, value=500)
-        max_salary = st.sidebar.slider("Maximum Salary", min_value=30000, max_value=200000, value=50000)
-        min_salary = st.sidebar.slider("Minimum Salary", min_value=30000, max_value=200000, value=30000)
-        listed_time = st.sidebar.slider("Listed Time (days)", min_value=0, max_value=365, value=30)
+        selected_job_id = st.selectbox("Select Job ID", options=job_id_list)
+        views = st.slider("Views", min_value=0, max_value=10000, value=500)
+        max_salary = st.slider("Maximum Salary", min_value=30000, max_value=200000, value=50000)
+        min_salary = st.slider("Minimum Salary", min_value=30000, max_value=200000, value=30000)
+        listed_time = st.slider("Listed Time (days)", min_value=0, max_value=365, value=30)
         
         work_type_options = df['work_type'].unique()
-        selected_work_type = st.sidebar.selectbox("Work Type", options=work_type_options)
+        selected_work_type = st.selectbox("Work Type", options=work_type_options)
         
         experience_level_options = df['formatted_experience_level'].unique()
-        selected_experience_level = st.sidebar.selectbox("Formatted Experience Level", options=experience_level_options)
+        selected_experience_level = st.selectbox("Formatted Experience Level", options=experience_level_options)
 
         average_salary = (max_salary + min_salary) / 2
 
@@ -183,7 +181,7 @@ def main():
         user_input['formatted_experience_level'] = le_experience_level.transform(user_input['formatted_experience_level'].astype(str))
         user_input_scaled = scaler.transform(user_input.drop(columns=['job_id']))
 
-        if st.sidebar.button("Get Recommendation"):
+        if st.button("Get Prediction"):
             predicted_applies = model.predict(user_input_scaled)[0]
             st.subheader("Prediction")
             st.write(f"Predicted Number of Applies: {predicted_applies:.2f}")
@@ -201,36 +199,23 @@ def main():
                 st.warning("Please select a job title.")
 
     elif selection == "Similar Jobs":
-        st.header("Similar Jobs")
-        selected_job_id = st.selectbox("Select Job ID to get recommendations:", job_id_list)
-        if st.button("Get Recommendations"):
-            display_knn_recommendations(selected_job_id)
+        st.header("Job Similarity Checker")
+        job_id_list = load_job_ids()
+        job_id_selected = st.selectbox("Select Job ID", options=job_id_list)
+        if st.button("Get Similar Jobs"):
+            display_knn_recommendations(job_id_selected)
 
     elif selection == "Popular Jobs":
         st.header("Popular Jobs")
-        input_desc = st.text_area("Enter job description to find recommendations:")
-        if st.button("Get Recommendations"):
-            if input_desc.strip():
-                recommended_jobs = recommend_jobs(input_desc)
-                if not recommended_jobs.empty:
-                    st.subheader("Recommended Jobs:")
-                    st.write(recommended_jobs[['processed_title', 'processed_company_name', 'processed_location']])
-                else:
-                    st.write("No recommendations found.")
-            else:
-                st.warning("Job description cannot be empty. Please enter a valid description.")
+        st.write("Top recommended jobs based on views:")
+        top_n = st.number_input("Enter the number of popular jobs to display:", min_value=1, value=5, step=1)
+        top_jobs = recommender_df.sort_values(by='views', ascending=False).head(top_n)
+        st.write(top_jobs[['processed_title', 'processed_company_name', 'processed_location', 'views']])
 
     elif selection == "Feedback":
         st.header("Feedback")
-        st.write("We value your feedback! Please let us know your thoughts and suggestions.")
-        feedback = st.text_area("Enter your feedback here:")
-        if st.button("Submit Feedback"):
-            if feedback.strip():
-                with open('feedback.txt', 'a') as f:
-                    f.write(feedback + '\n')
-                st.success("Thank you for your feedback!")
-            else:
-                st.warning("Feedback cannot be empty. Please enter your comments.")
+        st.text_area("Feedback", "Enter your feedback here...")
+        st.button("Submit")
 
 if __name__ == "__main__":
     main()
