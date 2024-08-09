@@ -209,18 +209,27 @@ elif page == 'Job Recommendations':
                 else:
                     st.markdown('<div class="error-message">Recommender DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="error-message">Please select a Job ID.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="error-message">Please select a valid Job ID.</div>', unsafe_allow_html=True)
 
     elif option == 'Recommend Jobs Based on Title Filter':
         st.subheader('Job Recommendations Based on Title Filter')
-        title_filter = st.selectbox('Select Job Title Filter:', options=job_titles)
-
+        selected_title = st.selectbox('Select Job Title:', options=job_titles)
+        
         if st.button('Get Recommendations'):
-            filtered_jobs = recommender_df[recommender_df['processed_title'].str.contains(title_filter, case=False, na=False)]
-            if not filtered_jobs.empty:
-                st.write(filtered_jobs[['processed_title', 'processed_company_name', 'processed_location']])
+            if selected_title:
+                if recommender_df is not None:
+                    filtered_jobs = recommender_df[recommender_df['processed_title'] == selected_title]
+
+                    # Exclude problematic columns
+                    required_columns = ['job_id', 'processed_title', 'processed_company_name', 'processed_location', 'average_salary']
+                    filtered_jobs = filtered_jobs[required_columns]
+                    
+                    st.write('Recommended Jobs:')
+                    st.write(filtered_jobs)
+                else:
+                    st.markdown('<div class="error-message">Recommender DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
             else:
-                st.write("No jobs found matching the title filter.")
+                st.markdown('<div class="error-message">Please select a valid Job Title.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -229,59 +238,33 @@ elif page == 'Predict Candidate Interest':
     display_header('Predict Candidate Interest - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
 
-    if forest_model:
-        # User inputs for prediction
-        views = st.number_input('Number of Views', min_value=0, value=0)
-        description_length = st.number_input('Description Length', min_value=0, value=0)
-        average_salary = st.number_input('Average Salary', min_value=0, value=0)
-        experience_level = st.selectbox('Experience Level', options=['Entry Level', 'Mid Level', 'Senior Level'])
-        days_since_listed = st.number_input('Days Since Listed', min_value=0, value=0)
-        work_type = st.selectbox('Work Type', options=['Full-time', 'Part-time', 'Contract', 'Internship'])
+    min_salary = st.number_input('Minimum Salary', value=0)
+    max_salary = st.number_input('Maximum Salary', value=1000000)
+    work_type = st.selectbox('Work Type', options=['Full-time', 'Part-time', 'Contract', 'Internship'])
 
-        # Map experience level to numerical value
-        experience_mapping = {'Entry Level': 1, 'Mid Level': 2, 'Senior Level': 3}
-        experience_value = experience_mapping.get(experience_level, 0)
+    if st.button('Predict'):
+        if predictor_df is not None:
+            # Filter the predictor_df based on input values
+            filtered_jobs = predictor_df[(predictor_df['average_salary'] >= min_salary) &
+                                         (predictor_df['average_salary'] <= max_salary) &
+                                         (predictor_df['work_type'] == work_type)]
+            
+            # Exclude problematic columns
+            required_columns = ['job_id', 'average_salary']
+            filtered_jobs = filtered_jobs[required_columns]
+            
+            # Predict candidate interest
+            if forest_model:
+                X = filtered_jobs[['average_salary']].values
+                predictions = forest_model.predict(X)
+                filtered_jobs['predicted_interest'] = predictions
 
-        # Map work type to numerical value
-        work_type_mapping = {'Full-time': 1, 'Part-time': 2, 'Contract': 3, 'Internship': 4}
-        work_type_value = work_type_mapping.get(work_type, 0)
-
-        # Create input features DataFrame
-        input_features = pd.DataFrame({
-            'views': [views],
-            'description_length': [description_length],
-            'average_salary': [average_salary],
-            'formatted_experience_level': [experience_value],
-            'days_since_listed': [days_since_listed],
-            'work_type': [work_type_value]
-        })
-
-        # Predict interest
-        prediction_prob = forest_model.predict_proba(input_features)[0][1]  # Probability of class 1
-        threshold = 0.5  # Set your threshold here
-
-        if prediction_prob > threshold:
-            prediction = 'High'
+                st.write('Predicted Candidate Interest:')
+                st.write(filtered_jobs[['job_id', 'average_salary', 'predicted_interest']])
+            else:
+                st.markdown('<div class="error-message">Random Forest model is not available.</div>', unsafe_allow_html=True)
         else:
-            prediction = 'Low'
-
-        st.write(f"Prediction Probability: {prediction_prob:.2f}")
-        st.write(f"Predicted Interest Level: {prediction}")
-
-        # Display filtered job postings based on prediction
-        if prediction == 'High':
-            filtered_jobs = predictor_df[predictor_df['average_salary'] >= average_salary]
-        else:
-            filtered_jobs = predictor_df[predictor_df['average_salary'] < average_salary]
-
-        if not filtered_jobs.empty:
-            st.write('Filtered Job Postings:')
-            st.write(filtered_jobs[['job_id', 'description', 'average_salary']])
-        else:
-            st.write("No job postings match the criteria.")
-
-    else:
-        st.markdown('<div class="error-message">Random Forest model is not available.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-message">Predictor DataFrame is not loaded correctly.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -289,14 +272,16 @@ elif page == 'Predict Candidate Interest':
 elif page == 'Feedback':
     display_header('Feedback - MatchWise', header_image_url)
     st.markdown('<div class="container main">', unsafe_allow_html=True)
-    st.subheader('Provide Your Feedback')
-    feedback = st.text_area('Share your feedback or suggestions here:')
-    submit_feedback = st.button('Submit Feedback')
 
-    if submit_feedback:
+    feedback = st.text_area('Your Feedback')
+
+    if st.button('Submit Feedback'):
         if feedback:
             st.markdown('<div class="success-message">Thank you for your feedback!</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="error-message">Please provide feedback before submitting.</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+# Additional Features
+st.markdown('<div class="footer">Developed by [Your Name]</div>', unsafe_allow_html=True)
